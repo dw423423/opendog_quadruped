@@ -1,0 +1,13 @@
+Actuator Name,Joint Name,Velocity Limit,Effort Limit
+Rfl1_hipr,Jfl1_hipr,60,97
+Rfl2_hipp,Jfl2_hipp,60,97
+Rfl3_knee,Jfl3_knee,60,97
+Rfr1_hipr,Jfr1_hipr,60,97
+Rfr2_hipp,Jfr2_hipp,60,97
+Rfr3_knee,Jfr3_knee,60,97
+Rrl1_hipr,Jrl1_hipr,60,97
+Rrl2_hipp,Jrl2_hipp,60,97
+Rrl3_knee,Jrl3_knee,60,97
+Rrr1_hipr,Jrr1_hipr,60,97
+Rrr2_hipp,Jrr2_hipp,60,97
+Rrr3_knee,Jrr3_knee,60,97

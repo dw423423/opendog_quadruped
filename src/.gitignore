@@ -1,0 +1,26 @@
+# ROS2 build
+build/
+install/
+log/
+
+# C++
+*.o
+*.so
+*.a
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+
+# Python
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/
+
+# Gazebo
+*.log
+
+# system
+.DS_Store
