@@ -84,7 +84,7 @@ initialState
    (10,0) 0.0     ; theta_base_y
    (11,0) 0.0     ; theta_base_x
 
-   ;; Leg Joint Positions: [FL, RL, FR, RR] ;;
+   ;; Leg Joint Positions: [FL, FR, RL, RR] ;;
    (12,0) -0.0   ; FL_hip_joint
    (13,0)  0.72   ; FL_thigh_joint
    (14,0) -1.44   ; FL_calf_joint
@@ -120,7 +120,7 @@ Q
   (10,10) 300.0    ; theta_base_y
   (11,11) 300.0    ; theta_base_x
 
-  ;; Leg Joint Positions: [FL, RL, FR, RR] ;;
+  ;; Leg Joint Positions: [FL, FR, RL, RR] ;;
   (12,12) 5.0     ; FL_hip_joint
   (13,13) 5.0     ; FL_thigh_joint
   (14,14) 2.5     ; FL_calf_joint
@@ -154,7 +154,7 @@ R
   (10,10) 1.0       ; rear_right_force
   (11,11) 1.0       ; rear_right_force
 
-  ;; foot velocity relative to base: [FL, RL, FR, RR] (uses the Jacobian at nominal configuration) ;;
+  ;; foot velocity relative to base: [FL, FR, RL, RR] (uses the Jacobian at nominal configuration) ;;
   (12,12) 5000.0    ; x
   (13,13) 5000.0    ; y
   (14,14) 5000.0    ; z
@@ -171,7 +171,7 @@ R
 
 frictionConeSoftConstraint
 {
-  frictionCoefficient    0.3
+  frictionCoefficient    1.0
 
   ; relaxed log barrier parameters
   mu                     0.1
@@ -215,7 +215,7 @@ torqueLimitsTask
 
 frictionConeTask
 {
-  frictionCoefficient    0.3
+  frictionCoefficient    1.0
 }
 
 swingLegTask
@@ -228,7 +228,7 @@ weight
 {
     swingLeg        100
     baseAccel       1
-    contactForce    0.05
+    contactForce    0.1
 }
 
 

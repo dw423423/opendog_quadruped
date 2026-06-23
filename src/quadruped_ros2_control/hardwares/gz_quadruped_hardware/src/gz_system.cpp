@@ -20,6 +20,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -134,6 +135,9 @@ public:
 
     /// \brief handles to the force torque from within Gazebo
     sim::Entity sim_ft_sensors_ = sim::kNullEntity;
+
+    /// \brief joint used as fallback source for foot force.
+    sim::Entity sim_ft_joint_ = sim::kNullEntity;
 
     /// \brief An array per FT
     std::array<double, 6> ft_sensor_data_;
@@ -420,13 +424,14 @@ namespace gz_quadruped_hardware
             this->dataPtr->joints_[j].is_actuated = joint_info.command_interfaces.size() > 0;
         }
 
-        registerSensors(hardware_info);
+        registerSensors(hardware_info, enableJoints);
 
         return true;
     }
 
     void GazeboSimSystem::registerSensors(
-        const hardware_interface::HardwareInfo& hardware_info)
+        const hardware_interface::HardwareInfo& hardware_info,
+        const std::map<std::string, sim::Entity>& enableJoints)
     {
         // Collect gazebo sensor handles
         size_t n_sensors = hardware_info.sensors.size();
@@ -500,6 +505,61 @@ namespace gz_quadruped_hardware
             });
 
         // Foot Force torque sensor
+        std::set<std::string> registered_ft_sensor_names;
+        auto footForceJointNameFromSensorName = [](const std::string& sensor_name) -> std::string
+        {
+            const std::string suffix = "_foot_force";
+            if (sensor_name.size() >= suffix.size() &&
+                sensor_name.compare(sensor_name.size() - suffix.size(), suffix.size(), suffix) == 0)
+            {
+                return sensor_name.substr(0, sensor_name.size() - suffix.size()) + "_foot_fixed";
+            }
+            return {};
+        };
+
+        auto attachFootForceJoint = [&](const std::shared_ptr<ForceTorqueData>& ftData)
+        {
+            const std::string joint_name = footForceJointNameFromSensorName(ftData->name);
+            if (joint_name.empty())
+            {
+                return;
+            }
+
+            auto joint_it = enableJoints.find(joint_name);
+            if (joint_it == enableJoints.end())
+            {
+                RCLCPP_WARN_STREAM(
+                    this->nh_->get_logger(),
+                    "Foot force sensor '" << ftData->name << "' could not find fallback joint '" << joint_name << "'.");
+                return;
+            }
+
+            ftData->sim_ft_joint_ = joint_it->second;
+            if (!this->dataPtr->ecm->EntityHasComponentType(
+                ftData->sim_ft_joint_,
+                sim::components::JointTransmittedWrench().TypeId()))
+            {
+                this->dataPtr->ecm->CreateComponent(
+                    ftData->sim_ft_joint_,
+                    sim::components::JointTransmittedWrench());
+            }
+        };
+
+        auto registerFootForceStateInterface = [&](const std::shared_ptr<ForceTorqueData>& ftData)
+        {
+            if (!registered_ft_sensor_names.insert(ftData->name).second)
+            {
+                return;
+            }
+
+            attachFootForceJoint(ftData);
+            this->dataPtr->state_interfaces_.emplace_back(
+                "foot_force",
+                ftData->name,
+                &ftData->foot_effort);
+            this->dataPtr->ft_sensors_.push_back(ftData);
+        };
+
         this->dataPtr->ecm->Each<sim::components::ForceTorque,
                                  sim::components::Name>(
             [&](const sim::Entity& _entity,
@@ -517,13 +577,27 @@ namespace gz_quadruped_hardware
                 }
                 ftData->name = _name->Data();
                 ftData->sim_ft_sensors_ = _entity;
-                this->dataPtr->state_interfaces_.emplace_back(
-                    "foot_force",
-                    ftData->name,
-                    &ftData->foot_effort);
-                this->dataPtr->ft_sensors_.push_back(ftData);
+                registerFootForceStateInterface(ftData);
                 return true;
             });
+
+        for (const auto& component : sensor_components_)
+        {
+            if (component.name != "foot_force")
+            {
+                continue;
+            }
+
+            for (const auto& state_interface : component.state_interfaces)
+            {
+                auto ftData = std::make_shared<ForceTorqueData>();
+                ftData->name = state_interface.name;
+                RCLCPP_INFO_STREAM(
+                    this->nh_->get_logger(),
+                    "Loading Foot Force state interface: " << ftData->name);
+                registerFootForceStateInterface(ftData);
+            }
+        }
     }
 
     CallbackReturn GazeboSimSystem::on_init(const hardware_interface::HardwareInfo& info)
@@ -617,6 +691,29 @@ namespace gz_quadruped_hardware
                     this->dataPtr->joints_[i].joint_axis.Xyz()[1],
                     this->dataPtr->joints_[i].joint_axis.Xyz()[2]
                 });
+        }
+
+        for (const auto& ft_sensor : this->dataPtr->ft_sensors_)
+        {
+            if (ft_sensor->sim_ft_joint_ == sim::kNullEntity)
+            {
+                continue;
+            }
+
+            const auto* jointWrench =
+                this->dataPtr->ecm->Component<sim::components::JointTransmittedWrench>(
+                    ft_sensor->sim_ft_joint_);
+            if (!jointWrench)
+            {
+                continue;
+            }
+
+            const gz::physics::Vector3d force{
+                jointWrench->Data().force().x(),
+                jointWrench->Data().force().y(),
+                jointWrench->Data().force().z()
+            };
+            ft_sensor->foot_effort = force.norm();
         }
 
         for (unsigned int i = 0; i < this->dataPtr->imus_.size(); ++i)

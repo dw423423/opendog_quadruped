@@ -16,6 +16,33 @@ namespace ocs2::legged_robot
 {
     using config_type = controller_interface::interface_configuration_type;
 
+    class Ocs2FixedStand final : public BaseFixedStand
+    {
+    public:
+        Ocs2FixedStand(CtrlInterfaces& ctrl_interfaces, const std::vector<double>& target_pos,
+                       const double kp, const double kd)
+            : BaseFixedStand(ctrl_interfaces, target_pos, kp, kd)
+        {
+        }
+
+        FSMStateName checkChange() override
+        {
+            if (percent_ < 1.5)
+            {
+                return FSMStateName::FIXEDSTAND;
+            }
+            switch (ctrl_interfaces_.control_inputs_.command)
+            {
+            case 1:
+                return FSMStateName::PASSIVE;
+            case 2:
+                return FSMStateName::OCS2;
+            default:
+                return FSMStateName::FIXEDSTAND;
+            }
+        }
+    };
+
     controller_interface::InterfaceConfiguration Ocs2QuadrupedController::command_interface_configuration() const
     {
         controller_interface::InterfaceConfiguration conf = {config_type::INDIVIDUAL, {}};
@@ -76,6 +103,7 @@ namespace ocs2::legged_robot
                                                                       const rclcpp::Duration& period)
     {
         ctrl_comp_->updateState(time, period);
+        updateStairTestLogger(time);
 
         if (mode_ == FSMMode::NORMAL)
         {
@@ -130,11 +158,33 @@ namespace ocs2::legged_robot
         foot_force_interface_types_ =
             auto_declare<std::vector<std::string>>("foot_force_interfaces", state_interface_types_);
 
+        // Stair test parameters are debug-only and are not connected to motion generation.
+        stair_test_mode_ = auto_declare<std::string>("stair_test_mode", stair_test_mode_);
+        const auto stair_settings = stair_foothold_planner_.settings();
+        auto_declare<double>("stair_x_start", stair_settings.stair_x_start);
+        auto_declare<double>("step_height", stair_settings.step_height);
+        auto_declare<double>("step_depth", stair_settings.step_depth);
+        auto_declare<double>("step_width", stair_settings.step_width);
+        auto_declare<double>("stair_y_center", stair_settings.stair_y_center);
+        auto_declare<double>("lf_target_y", stair_settings.lf_target_y);
+        auto_declare<double>("rf_target_y", stair_settings.rf_target_y);
+        loadStairFootholdPlannerSettings();
+
         ctrl_comp_ = std::make_shared<CtrlComponent>(get_node(), ctrl_interfaces_);
         ctrl_comp_->setupStateEstimate(estimator_type_);
 
         state_list_.passive = std::make_shared<StatePassive>(ctrl_interfaces_);
-        state_list_.fixedDown = std::make_shared<StateOCS2>(ctrl_interfaces_, ctrl_comp_);
+        state_list_.fixedStand = std::make_shared<Ocs2FixedStand>(
+            ctrl_interfaces_,
+            std::vector<double>{
+                0.0, 0.72, -1.44,
+                0.0, 0.72, -1.44,
+                0.0, 0.72, -1.44,
+                0.0, 0.72, -1.44
+            },
+            80.0,
+            5.5);
+        state_list_.ocs2 = std::make_shared<StateOCS2>(ctrl_interfaces_, ctrl_comp_);
 
         return CallbackReturn::SUCCESS;
     }
@@ -238,9 +288,69 @@ namespace ocs2::legged_robot
         case FSMStateName::PASSIVE:
             return state_list_.passive;
         case FSMStateName::FIXEDDOWN:
-            return state_list_.fixedDown;
+        case FSMStateName::FIXEDSTAND:
+            return state_list_.fixedStand;
+        case FSMStateName::OCS2:
+            return state_list_.ocs2;
         default:
             return state_list_.invalid;
+        }
+    }
+
+    void Ocs2QuadrupedController::loadStairFootholdPlannerSettings()
+    {
+        StairFootholdPlannerSettings settings;
+        settings.stair_x_start = get_node()->get_parameter("stair_x_start").as_double();
+        settings.step_height = get_node()->get_parameter("step_height").as_double();
+        settings.step_depth = get_node()->get_parameter("step_depth").as_double();
+        settings.step_width = get_node()->get_parameter("step_width").as_double();
+        settings.stair_y_center = get_node()->get_parameter("stair_y_center").as_double();
+        settings.lf_target_y = get_node()->get_parameter("lf_target_y").as_double();
+        settings.rf_target_y = get_node()->get_parameter("rf_target_y").as_double();
+        stair_foothold_planner_.setSettings(settings);
+    }
+
+    void Ocs2QuadrupedController::updateStairTestLogger(const rclcpp::Time& time)
+    {
+        const double now = time.seconds();
+        if (last_stair_test_log_time_ >= 0.0 && now - last_stair_test_log_time_ < 0.5)
+        {
+            return;
+        }
+        last_stair_test_log_time_ = now;
+
+        stair_test_mode_ = get_node()->get_parameter("stair_test_mode").as_string();
+        if (stair_test_mode_ == "off")
+        {
+            return;
+        }
+
+        loadStairFootholdPlannerSettings();
+        const auto targets = stair_foothold_planner_.targetsForMode(stair_test_mode_);
+        if (targets.empty())
+        {
+            RCLCPP_WARN(get_node()->get_logger(),
+                        "[STAIR_TEST] unsupported mode=%s, expected off|lf_step_up|rf_step_up|front_legs_step_up",
+                        stair_test_mode_.c_str());
+            return;
+        }
+
+        const auto& settings = stair_foothold_planner_.settings();
+        RCLCPP_INFO(get_node()->get_logger(), "[STAIR_TEST] mode=%s", stair_test_mode_.c_str());
+        for (const auto& target : targets)
+        {
+            RCLCPP_INFO(get_node()->get_logger(), "[STAIR_TEST] leg=%s", target.leg.c_str());
+            RCLCPP_INFO(get_node()->get_logger(), "[STAIR_TEST] target_foot=(%.3f,%.3f,%.3f)",
+                        target.x, target.y, target.z);
+            RCLCPP_INFO(get_node()->get_logger(),
+                        "[STAIR_TEST] stair=(x_start=%.3f, depth=%.3f, height=%.3f, width=%.3f)",
+                        settings.stair_x_start, settings.step_depth, settings.step_height, settings.step_width);
+            if (!stair_foothold_planner_.isFootholdSafe(target))
+            {
+                RCLCPP_WARN(get_node()->get_logger(),
+                            "[STAIR_TEST] target for leg=%s failed static stair safety checks",
+                            target.leg.c_str());
+            }
         }
     }
 }

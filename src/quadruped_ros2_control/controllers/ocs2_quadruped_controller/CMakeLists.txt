@@ -65,6 +65,7 @@ add_library(${PROJECT_NAME} SHARED
         src/control/GaitManager.cpp
         src/control/TargetManager.cpp
         src/control/CtrlComponent.cpp
+        src/control/StairFootholdPlanner.cpp
 
         src/perceptive/constraint/FootCollisionConstraint.cpp
         src/perceptive/constraint/FootPlacementConstraint.cpp

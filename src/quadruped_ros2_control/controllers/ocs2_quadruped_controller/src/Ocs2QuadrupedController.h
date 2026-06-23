@@ -6,16 +6,19 @@
 #define OCS2QUADRUPEDCONTROLLER_H
 
 #include <controller_common/FSM/StatePassive.h>
+#include <controller_common/FSM/BaseFixedStand.h>
 #include <controller_interface/controller_interface.hpp>
 #include <control_input_msgs/msg/inputs.hpp>
 #include <ocs2_quadruped_controller/FSM/StateOCS2.h>
 #include <ocs2_quadruped_controller/control/CtrlComponent.h>
+#include <ocs2_quadruped_controller/control/StairFootholdPlanner.h>
 
 namespace ocs2::legged_robot {
     struct FSMStateList {
         std::shared_ptr<FSMState> invalid;
         std::shared_ptr<StatePassive> passive;
-        std::shared_ptr<StateOCS2> fixedDown;
+        std::shared_ptr<BaseFixedStand> fixedStand;
+        std::shared_ptr<StateOCS2> ocs2;
     };
 
     class Ocs2QuadrupedController final : public controller_interface::ControllerInterface {
@@ -54,6 +57,9 @@ namespace ocs2::legged_robot {
     protected:
 
         std::shared_ptr<FSMState> getNextState(FSMStateName stateName) const;
+
+        void updateStairTestLogger(const rclcpp::Time& time);
+        void loadStairFootholdPlannerSettings();
 
         FSMMode mode_ = FSMMode::NORMAL;
         std::string state_name_;
@@ -99,6 +105,10 @@ namespace ocs2::legged_robot {
         std::string estimator_type_ = "linear_kalman";
         std::string odom_name_;
         std::vector<std::string> odom_interface_types_;
+
+        StairFootholdPlanner stair_foothold_planner_;
+        std::string stair_test_mode_ = "off";
+        double last_stair_test_log_time_ = -1.0;
 
         rclcpp::Subscription<control_input_msgs::msg::Inputs>::SharedPtr control_input_subscription_;
     };

@@ -4,14 +4,14 @@ list
   [1] trot
   [2] standing_trot
   [3] flying_trot
-  [4] pace
+  [4] pawup
   [5] standing_pace
   [6] dynamic_walk
   [7] static_walk
   [8] amble
   [9] lindyhop
   [10] skipping
-  [11] pawup
+  [11] pace
 }
 
 stance
@@ -80,23 +80,17 @@ flying_trot
   }
 }
 
-pace
+pawup
 {
-  modeSequence
-  {
-    [0]     LF_LH
-    [1]     FLY
-    [2]     RF_RH
-    [3]     FLY
-  }
-  switchingTimes
-  {
-    [0]     0.0
-    [1]     0.28
-    [2]     0.30
-    [3]     0.58
-    [4]     0.60
-  }
+   modeSequence
+   {
+     [0]     RF_LH_RH
+   }
+   switchingTimes
+   {
+     [0]     0.0
+     [1]     2.0
+   }
 }
 
 standing_pace
@@ -241,15 +235,23 @@ skipping
   }
 }
 
-pawup
+
+
+pace
 {
-   modeSequence
-   {
-     [0]     RF_LH_RH
-   }
-   switchingTimes
-   {
-     [0]     0.0
-     [1]     2.0
-   }
+  modeSequence
+  {
+    [0]     LF_LH
+    [1]     FLY
+    [2]     RF_RH
+    [3]     FLY
+  }
+  switchingTimes
+  {
+    [0]     0.0
+    [1]     0.28
+    [2]     0.30
+    [3]     0.58
+    [4]     0.60
+  }
 }

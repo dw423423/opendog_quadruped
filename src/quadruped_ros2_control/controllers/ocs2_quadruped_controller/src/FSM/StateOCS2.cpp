@@ -4,11 +4,15 @@
 
 #include "ocs2_quadruped_controller/FSM/StateOCS2.h"
 
+#include <algorithm>
+#include <array>
 #include <angles/angles.h>
+#include <cmath>
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_quadruped_controller/wbc/WeightedWbc.h>
 #include <ocs2_sqp/SqpMpc.h>
+#include <sstream>
 
 namespace ocs2::legged_robot
 {
@@ -44,6 +48,34 @@ namespace ocs2::legged_robot
 
     void StateOCS2::enter()
     {
+        startup_log_count_ = 0;
+
+        const std::array<double, 12> stance_joint_targets = {
+            0.0, 0.72, -1.44,
+            0.0, 0.72, -1.44,
+            0.0, 0.72, -1.44,
+            0.0, 0.72, -1.44
+        };
+        double max_joint_error = 0.0;
+        for (size_t i = 0; i < std::min(ctrl_interfaces_.joint_position_state_interface_.size(),
+                                        stance_joint_targets.size()); ++i)
+        {
+            const double position = ctrl_interfaces_.joint_position_state_interface_[i].get().get_value();
+            max_joint_error = std::max(max_joint_error, std::abs(position - stance_joint_targets[i]));
+        }
+        if (max_joint_error > 0.15)
+        {
+            RCLCPP_WARN(node_->get_logger(),
+                        "[OCS2] Entering OCS2 with large fixed-stand joint error: %.3f rad",
+                        max_joint_error);
+        }
+        else
+        {
+            RCLCPP_INFO(node_->get_logger(),
+                        "[OCS2] Entering OCS2. Max fixed-stand joint error: %.3f rad",
+                        max_joint_error);
+        }
+
         ctrl_component_->init();
     }
 
@@ -75,6 +107,43 @@ namespace ocs2::legged_robot
         wbc_timer_.endTimer();
 
         vector_t torque = x.tail(12);
+
+        if (startup_log_count_ < 5)
+        {
+            const auto contact_flags = modeNumber2StanceLeg(ctrl_component_->observation_.mode);
+            std::ostringstream foot_forces;
+            for (size_t i = 0; i < ctrl_interfaces_.foot_force_state_interface_.size(); ++i)
+            {
+                if (i > 0)
+                {
+                    foot_forces << ", ";
+                }
+                foot_forces << ctrl_interfaces_.foot_force_state_interface_[i].get().get_value();
+            }
+
+            RCLCPP_INFO(node_->get_logger(),
+                        "[OCS2] startup[%d] obs_mode=%zu planned_mode=%zu contacts=[%d,%d,%d,%d] "
+                        "base_rpy=[%.3f, %.3f, %.3f] base_z=%.3f foot_forces=[%s] "
+                        "tau_FL=[%.2f, %.2f, %.2f] tau_FR=[%.2f, %.2f, %.2f] "
+                        "tau_RL=[%.2f, %.2f, %.2f] tau_RR=[%.2f, %.2f, %.2f]",
+                        startup_log_count_,
+                        ctrl_component_->observation_.mode,
+                        planned_mode,
+                        static_cast<int>(contact_flags[0]),
+                        static_cast<int>(contact_flags[1]),
+                        static_cast<int>(contact_flags[2]),
+                        static_cast<int>(contact_flags[3]),
+                        ctrl_component_->observation_.state(11),
+                        ctrl_component_->observation_.state(10),
+                        ctrl_component_->observation_.state(9),
+                        ctrl_component_->observation_.state(8),
+                        foot_forces.str().c_str(),
+                        torque(0), torque(1), torque(2),
+                        torque(3), torque(4), torque(5),
+                        torque(6), torque(7), torque(8),
+                        torque(9), torque(10), torque(11));
+            ++startup_log_count_;
+        }
 
         vector_t pos_des = centroidal_model::getJointAngles(optimized_state_,
                                                             ctrl_component_->legged_interface_->
@@ -118,4 +187,5 @@ namespace ocs2::legged_robot
             return FSMStateName::OCS2;
         }
     }
+
 }

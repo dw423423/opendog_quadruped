@@ -39,7 +39,6 @@ namespace ocs2::legged_robot
         FSMStateName checkChange() override;
 
     private:
-
         std::shared_ptr<CtrlComponent> ctrl_component_;
         std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_;
 
@@ -50,6 +49,8 @@ namespace ocs2::legged_robot
 
         double default_kp_ = 0;
         double default_kd_ = 6;
+
+        int startup_log_count_ = 0;
 
         vector_t optimized_state_, optimized_input_;
     };

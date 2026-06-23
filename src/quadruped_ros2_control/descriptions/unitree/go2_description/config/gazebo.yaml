@@ -28,6 +28,7 @@ ocs2_quadruped_controller:
   ros__parameters:
     update_rate: 200  # Hz
     robot_pkg: "go2_description"
+    default_kp: 20.0
     default_kd: 5.5
     feet_force_threshold: 4.0
     joints:
@@ -62,6 +63,15 @@ ocs2_quadruped_controller:
       - RL_foot
       - RR_foot
 
+    stair_test_mode: "off"
+    stair_x_start: 1.0
+    step_height: 0.03
+    step_depth: 0.35
+    step_width: 1.0
+    stair_y_center: 0.0
+    lf_target_y: 0.12
+    rf_target_y: -0.12
+
     imu_name: "imu_sensor"
     base_name: "base"
 
@@ -80,8 +90,8 @@ ocs2_quadruped_controller:
     foot_force_name: "foot_force"
     foot_force_interfaces:
       - FL_foot_force
-      - RL_foot_force
       - FR_foot_force
+      - RL_foot_force
       - RR_foot_force
 
 unitree_guide_controller:
