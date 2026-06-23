@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pawup 在 OCS2 控制链路中的实现</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #17202a;
+      --muted: #59636f;
+      --line: #c8d2df;
+      --blue: #1f6feb;
+      --green: #1a7f37;
+      --amber: #9a6700;
+      --red: #cf222e;
+      --soft-blue: #eaf2ff;
+      --soft-green: #eaf7ee;
+      --soft-amber: #fff4ce;
+      --soft-red: #ffebe9;
+      --code: #0f172a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 34px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 18px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0;
+      color: var(--muted);
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #eef2f7;
+      color: var(--code);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e5e7eb;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    .hero {
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+
+    .hero .summary {
+      max-width: 900px;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+      color: var(--ink);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .panel {
+      margin-top: 18px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .node {
+      position: relative;
+      min-height: 150px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .node::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -16px;
+      width: 16px;
+      height: 2px;
+      background: var(--line);
+    }
+
+    .node:nth-child(4n)::after,
+    .node:last-child::after {
+      display: none;
+    }
+
+    .node h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 0;
+      font-size: 15px;
+    }
+
+    .num {
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+
+    .node p {
+      margin: 8px 0 0;
+      font-size: 13px;
+    }
+
+    .node .io {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e6ebf1;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .manual {
+      background: var(--soft-amber);
+      border-color: #f0c36a;
+    }
+
+    .runtime {
+      background: var(--soft-blue);
+      border-color: #9cc2ff;
+    }
+
+    .planner {
+      background: var(--soft-green);
+      border-color: #90d19f;
+    }
+
+    .constraint {
+      background: var(--soft-red);
+      border-color: #ffaaa5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    th, td {
+      vertical-align: top;
+      padding: 11px 12px;
+      border-bottom: 1px solid #e6ebf1;
+      text-align: left;
+    }
+
+    th {
+      background: #f3f6fa;
+      color: #283747;
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .callout {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--blue);
+      border-radius: 6px;
+      background: #f7fbff;
+    }
+
+    .callout strong {
+      color: var(--ink);
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .legend div {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 920px) {
+      .flow,
+      .two-col,
+      .legend {
+        grid-template-columns: 1fr;
+      }
+
+      .node::after {
+        top: auto;
+        right: auto;
+        left: 50%;
+        bottom: -16px;
+        width: 2px;
+        height: 16px;
+      }
+
+      .node:nth-child(4n)::after {
+        display: block;
+      }
+
+      .node:last-child::after {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>pawup 在 OCS2 控制链路中的实现框架图</h1>
+    <p class="summary">
+      <code>pawup</code> 的本质是一个接触模式：左前腿 LF 摆动，RF/LH/RH 三腿支撑。
+      当前工程中，OCS2 显式生成的是摆动腿的 <strong>Z 向高度轨迹</strong>；
+      XY 落脚轨迹没有被 <code>SwingTrajectoryPlanner</code> 显式规划，而是由 MPC 优化状态再通过正运动学间接得到。
+    </p>
+    <div class="pill-row">
+      <span class="pill">用户手写：gait.info / task.info / reference.info</span>
+      <span class="pill">运行输入：/control_input 或 /cmd_vel</span>
+      <span class="pill">显式足端轨迹：Z 高度样条</span>
+      <span class="pill">隐式足端轨迹：optimized_state -> FK</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>总流程图</h2>
+    <p>颜色含义：黄色是用户配置/输入，蓝色是运行时数据管理，绿色是轨迹/优化，红色是约束生成。</p>
+    <div class="legend">
+      <div class="manual">用户手动写入或触发</div>
+      <div class="runtime">控制器运行时搬运数据</div>
+      <div class="planner">MPC / 轨迹生成</div>
+      <div class="constraint">约束 / 预计算</div>
+    </div>
+
+    <div class="flow" style="margin-top: 18px;">
+      <article class="node manual">
+        <h3><span class="num">1</span>手动参数</h3>
+        <p><code>gait.info</code> 写入 <code>pawup</code>；<code>task.info</code> 写入摆腿高度参数。</p>
+        <div class="io">输出：gait 模板、swingHeight、liftOffVelocity、touchDownVelocity</div>
+      </article>
+
+      <article class="node manual">
+        <h3><span class="num">2</span>键盘命令</h3>
+        <p><code>KeyboardInput</code> 按键 <code>6</code> 发布 <code>command = 6</code> 到 <code>/control_input</code>。</p>
+        <div class="io">输出：<code>control_inputs_.command = 6</code></div>
+      </article>
+
+      <article class="node runtime">
+        <h3><span class="num">3</span>控制器接收</h3>
+        <p><code>Ocs2QuadrupedController</code> 订阅 <code>/control_input</code>，写入 <code>CtrlInterfaces</code>。</p>
+        <div class="io">输入：ROS 消息；输出：控制输入缓存</div>
+      </article>
+
+      <article class="node runtime">
+        <h3><span class="num">4</span>GaitManager</h3>
+        <p><code>command - 2 = 4</code>，选中 <code>gait_list_[4]</code>，也就是 <code>pawup</code>。</p>
+        <div class="io">输出：插入 <code>GaitSchedule</code> 的 pawup 模板</div>
+      </article>
+
+      <article class="node runtime">
+        <h3><span class="num">5</span>TargetManager</h3>
+        <p>根据键盘速度或 <code>/cmd_vel</code> 生成身体目标轨迹 <code>TargetTrajectories</code>。</p>
+        <div class="io">输出：base 目标状态、默认关节姿态、目标时间</div>
+      </article>
+
+      <article class="node planner">
+        <h3><span class="num">6</span>ReferenceManager</h3>
+        <p><code>modifyReferences()</code> 从 <code>GaitSchedule</code> 取出当前 MPC 时间窗的 <code>ModeSchedule</code>。</p>
+        <div class="io">输出：eventTimes + modeSequence</div>
+      </article>
+
+      <article class="node planner">
+        <h3><span class="num">7</span>SwingTrajectoryPlanner</h3>
+        <p>把 <code>RF_LH_RH</code> 展开成 LF 摆动、其余三腿支撑，并生成 LF 的 Z 高度样条。</p>
+        <div class="io">输出：<code>feetHeightTrajectories_[LF]</code></div>
+      </article>
+
+      <article class="node constraint">
+        <h3><span class="num">8</span>PreComputation</h3>
+        <p>读取 LF 的期望 Z 位置/速度，构造 <code>normalVelocity</code> 约束配置。</p>
+        <div class="io">输出：<code>eeNormalVelConConfigs_</code></div>
+      </article>
+
+      <article class="node planner">
+        <h3><span class="num">9</span>SQP MPC</h3>
+        <p>在接触模式、动力学、代价和足端 Z 约束下求解最优状态/输入。</p>
+        <div class="io">输出：<code>optimized_state</code>、<code>optimized_input</code>、<code>planned_mode</code></div>
+      </article>
+
+      <article class="node runtime">
+        <h3><span class="num">10</span>StateOCS2</h3>
+        <p><code>evaluatePolicy()</code> 取当前时刻 MPC 策略，交给 WBC。</p>
+        <div class="io">输入：MPC policy；输出：WBC 期望状态/输入</div>
+      </article>
+
+      <article class="node runtime">
+        <h3><span class="num">11</span>WBC</h3>
+        <p>根据 <code>planned_mode</code> 判断 LF 是摆动腿，用优化状态 FK 得到足端 xyz 期望并跟踪。</p>
+        <div class="io">输出：关节力矩 + 关节位置/速度命令</div>
+      </article>
+
+      <article class="node runtime">
+        <h3><span class="num">12</span>硬件接口</h3>
+        <p>命令写入 ros2_control command interfaces，驱动 Gazebo 或真实硬件。</p>
+        <div class="io">输出：effort / position / velocity / kp / kd</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>用户手动写的参数如何起作用</h2>
+    <table>
+      <thead>
+      <tr>
+        <th>手动写入位置</th>
+        <th>关键数据</th>
+        <th>进入代码的位置</th>
+        <th>最终作用</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td><code>descriptions/unitree/go2_description/config/ocs2/gait.info</code></td>
+        <td>
+          <code>list[4] pawup</code><br>
+          <code>modeSequence: RF_LH_RH</code><br>
+          <code>switchingTimes: 0.0, 2.0</code>
+        </td>
+        <td>
+          <code>GaitManager::init()</code> 加载 gait 列表；<br>
+          <code>GaitManager::getTargetGait()</code> 用 <code>command - 2</code> 选中 gait。
+        </td>
+        <td>
+          告诉 OCS2：pawup 期间 RF/LH/RH 支撑，LF 摆动。
+        </td>
+      </tr>
+      <tr>
+        <td><code>task.info</code> 的 <code>swing_trajectory_config</code></td>
+        <td>
+          <code>liftOffVelocity = 0.05</code><br>
+          <code>touchDownVelocity = -0.1</code><br>
+          <code>swingHeight = 0.08</code><br>
+          <code>swingTimeScale = 0.15</code>
+        </td>
+        <td>
+          <code>loadSwingTrajectorySettings()</code> 读取；<br>
+          <code>SwingTrajectoryPlanner::update()</code> 使用。
+        </td>
+        <td>
+          决定摆动腿 Z 轨迹的离地速度、触地速度、中间抬脚高度。
+        </td>
+      </tr>
+      <tr>
+        <td><code>reference.info</code></td>
+        <td>
+          <code>comHeight = 0.35</code><br>
+          <code>defaultJointState</code><br>
+          <code>targetDisplacementVelocity</code>
+        </td>
+        <td>
+          <code>TargetManager</code> 构造 <code>TargetTrajectories</code>。
+        </td>
+        <td>
+          决定身体目标高度、默认关节姿态、键盘速度到 base 目标位移的比例。
+        </td>
+      </tr>
+      <tr>
+        <td>键盘输入</td>
+        <td><code>按 6 -> command = 6</code></td>
+        <td>
+          <code>KeyboardInput::check_command()</code> 发布；<br>
+          <code>Ocs2QuadrupedController::on_configure()</code> 订阅。
+        </td>
+        <td>
+          触发 <code>GaitManager</code> 选择 <code>pawup</code>。
+        </td>
+      </tr>
+      <tr>
+        <td><code>SwitchedModelReferenceManager.cpp</code></td>
+        <td><code>terrainHeight = 0.0</code></td>
+        <td><code>swingTrajectoryPtr_->update(modeSchedule, terrainHeight)</code></td>
+        <td>
+          非感知版本默认平地，高度样条从 <code>z=0</code> 抬起再回到 <code>z=0</code>。
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>代码块输入 / 输出关系</h2>
+    <table>
+      <thead>
+      <tr>
+        <th>代码块</th>
+        <th>输入</th>
+        <th>输出</th>
+        <th>数据给谁用</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td><code>KeyboardInput.cpp</code></td>
+        <td>用户按键 <code>6</code></td>
+        <td><code>control_input_msgs::msg::Inputs.command = 6</code></td>
+        <td><code>Ocs2QuadrupedController</code></td>
+      </tr>
+      <tr>
+        <td><code>Ocs2QuadrupedController.cpp</code></td>
+        <td><code>/control_input</code> 消息</td>
+        <td><code>ctrl_interfaces_.control_inputs_</code></td>
+        <td><code>GaitManager</code>、<code>TargetManager</code></td>
+      </tr>
+      <tr>
+        <td><code>GaitManager.cpp</code></td>
+        <td><code>command = 6</code>、<code>gait.info</code></td>
+        <td><code>target_gait_ = pawup</code>，插入 <code>GaitSchedule</code></td>
+        <td><code>SwitchedModelReferenceManager</code></td>
+      </tr>
+      <tr>
+        <td><code>TargetManager.cpp / TargetManager.h</code></td>
+        <td><code>control_inputs_</code> 或 <code>/cmd_vel</code>、当前 <code>observation</code></td>
+        <td><code>TargetTrajectories</code></td>
+        <td>OCS2 代价函数，用于 base 目标跟踪</td>
+      </tr>
+      <tr>
+        <td><code>SwitchedModelReferenceManager.cpp</code></td>
+        <td><code>GaitSchedule</code>、<code>initTime</code>、<code>finalTime</code></td>
+        <td><code>ModeSchedule</code>、更新后的 <code>SwingTrajectoryPlanner</code></td>
+        <td>OCS2 求解器、<code>LeggedRobotPreComputation</code></td>
+      </tr>
+      <tr>
+        <td><code>SwingTrajectoryPlanner.cpp</code></td>
+        <td><code>ModeSchedule</code>、离地/触地高度、<code>swing_trajectory_config</code></td>
+        <td>每条腿每个相位的 Z 高度样条</td>
+        <td><code>LeggedRobotPreComputation</code> 查询 Z 位置/速度</td>
+      </tr>
+      <tr>
+        <td><code>LeggedRobotPreComputation.cpp</code></td>
+        <td>时刻 <code>t</code>、状态 <code>x</code>、输入 <code>u</code>、Swing Z 轨迹</td>
+        <td><code>eeNormalVelConConfigs_</code>、Pinocchio 运动学/动力学缓存</td>
+        <td>OCS2 的足端法向速度约束和线性化</td>
+      </tr>
+      <tr>
+        <td><code>StateOCS2.cpp</code></td>
+        <td>MPC policy、当前观测状态</td>
+        <td><code>optimized_state_</code>、<code>optimized_input_</code>、<code>planned_mode</code></td>
+        <td><code>WbcBase</code> 生成最终关节命令</td>
+      </tr>
+      <tr>
+        <td><code>WbcBase.cpp</code></td>
+        <td>优化状态/输入、测量状态、<code>planned_mode</code></td>
+        <td>关节力矩、位置、速度命令</td>
+        <td>ros2_control command interfaces</td>
+      </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>pawup 的关键数据长什么样</h2>
+    <div class="two-col">
+      <div>
+        <h3>gait.info 中的 pawup</h3>
+        <pre><code>pawup
+{
+  modeSequence
+  {
+    [0] RF_LH_RH
+  }
+  switchingTimes
+  {
+    [0] 0.0
+    [1] 2.0
+  }
+}</code></pre>
+        <p class="small">
+          <code>RF_LH_RH</code> 表示 RF、LH、RH 支撑；没有写出的 LF 是摆动腿。
+        </p>
+      </div>
+      <div>
+        <h3>Swing Z 轨迹核心公式</h3>
+        <pre><code>liftOff:
+  time = swingStartTime
+  z    = liftOffHeight
+  dz   = liftOffVelocity
+
+midHeight:
+  z = max(liftOffHeight, touchDownHeight) + swingHeight
+
+touchDown:
+  time = swingFinalTime
+  z    = touchDownHeight
+  dz   = touchDownVelocity</code></pre>
+        <p class="small">
+          当前非感知版本中，<code>liftOffHeight</code> 和 <code>touchDownHeight</code> 都来自 <code>terrainHeight = 0.0</code>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>XY 轨迹在哪里</h2>
+    <div class="callout">
+      <strong>当前实现没有显式 XY 落脚轨迹。</strong>
+      <p>
+        <code>SwingTrajectoryPlanner</code> 只提供 <code>getZpositionConstraint()</code> 和
+        <code>getZvelocityConstraint()</code>。XY 足端位置来自 OCS2 优化后的
+        <code>optimized_state</code>，再由 Pinocchio 正运动学算出。WBC 最后跟踪这个
+        由优化状态得到的足端 <code>xyz</code>，但只有 <code>z</code> 被 swing planner 明确约束。
+      </p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>一句话总结</h2>
+    <p>
+      用户通过 <code>gait.info</code> 写好 <code>pawup</code> 的接触模式，通过按键选择它；
+      <code>GaitManager</code> 把它插入 <code>GaitSchedule</code>；
+      <code>SwitchedModelReferenceManager</code> 把 gait 转成 <code>ModeSchedule</code>；
+      <code>SwingTrajectoryPlanner</code> 根据该接触时序生成 LF 的 Z 向摆腿高度样条；
+      <code>LeggedRobotPreComputation</code> 将这条 Z 轨迹变成 OCS2 约束；
+      MPC 求解后，WBC 根据优化状态和接触模式输出最终关节命令。
+    </p>
+  </section>
+</main>
+</body>
+</html>

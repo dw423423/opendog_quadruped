@@ -56,8 +56,12 @@ namespace ocs2::legged_robot {
                                                          TargetTrajectories &targetTrajectories,
                                                          ModeSchedule &modeSchedule) {
         const auto timeHorizon = finalTime - initTime;
+        // 在 MPC 时间窗前后各多取一个 horizon，保证跨越当前时间窗边界的摆动相
+        // 也能找到有效的离地和触地事件时间。
         modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
 
+        // 非感知版本默认地形高度为 0。摆腿轨迹规划器会根据接触时序，
+        // 为每条摆动腿生成竖直方向的足端轨迹。
         const scalar_t terrainHeight = 0.0;
         swingTrajectoryPtr_->update(modeSchedule, terrainHeight);
     }

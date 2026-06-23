@@ -86,11 +86,14 @@ namespace ocs2::legged_robot {
                                         const feet_array_t<scalar_array_t> &liftOffHeightSequence,
                                         const feet_array_t<scalar_array_t> &touchDownHeightSequence,
                                         const feet_array_t<scalar_array_t> &maxHeightSequence) {
+        // modeSequence 表示每个相位的接触模式，eventTimes 表示这些相位的切换时刻。
         const auto &modeSequence = modeSchedule.modeSequence;
         const auto &eventTimes = modeSchedule.eventTimes;
 
+        // 将接触模式展开成每条腿的支撑标志：true 为支撑腿，false 为摆动腿。
         const auto eesContactFlagStocks = extractContactFlags(modeSequence);
 
+        // 对每条腿、每个相位，找出该摆动段对应的离地事件和触地事件索引。
         feet_array_t<std::vector<int> > startTimesIndices;
         feet_array_t<std::vector<int> > finalTimesIndices;
         for (size_t leg = 0; leg < numFeet_; leg++) {
@@ -98,12 +101,14 @@ namespace ocs2::legged_robot {
                     updateFootSchedule(eesContactFlagStocks[leg]);
         }
 
+        // 为每条腿在每个相位构造一段足端高度轨迹。这里规划的是 Z 方向高度，
+        // XY 方向不在 SwingTrajectoryPlanner 中显式生成。
         for (size_t j = 0; j < numFeet_; j++) {
             feetHeightTrajectories_[j].clear();
             feetHeightTrajectories_[j].reserve(modeSequence.size());
             for (int p = 0; p < modeSequence.size(); ++p) {
                 if (!eesContactFlagStocks[j][p]) {
-                    // for a swing leg
+                    // 摆动腿：使用离地高度、中间最高点和触地高度构造三次样条。
                     const int swingStartIndex = startTimesIndices[j][p];
                     const int swingFinalIndex = finalTimesIndices[j][p];
                     checkThatIndicesAreValid(j, p, swingStartIndex, swingFinalIndex, modeSequence);
@@ -111,6 +116,7 @@ namespace ocs2::legged_robot {
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
 
+                    // 短摆动相会按时间比例降低抬脚速度、落脚速度和摆动高度。
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
 
@@ -123,13 +129,14 @@ namespace ocs2::legged_robot {
                     const scalar_t midHeight = maxHeightSequence[j][p] + scaling * config_.swingHeight;
                     feetHeightTrajectories_[j].emplace_back(liftOff, midHeight, touchDown);
                 } else {
-                    // for a stance leg
+                    // 支撑腿：高度保持不变，仅构造一段常值轨迹，方便统一查询。
                     // Note: setting the time here arbitrarily to 0.0 -> 1.0 makes the assert in CubicSpline fail
                     const CubicSpline::Node liftOff{0.0, liftOffHeightSequence[j][p], 0.0};
                     const CubicSpline::Node touchDown{1.0, liftOffHeightSequence[j][p], 0.0};
                     feetHeightTrajectories_[j].emplace_back(liftOff, liftOffHeightSequence[j][p], touchDown);
                 }
             }
+            // 记录该腿每段高度样条对应的事件时间，查询某个时刻高度时用它定位相位。
             feetHeightTrajectoriesEvents_[j] = eventTimes;
         }
     }

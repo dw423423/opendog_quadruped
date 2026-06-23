@@ -65,24 +65,30 @@ namespace ocs2::legged_robot {
 
 
     void LeggedRobotPreComputation::request(RequestSet request, scalar_t t, const vector_t &x, const vector_t &u) {
+        // 如果本次求解没有请求代价或约束相关计算，就不需要更新预计算缓存。
         if (!request.containsAny(Request::Cost + Request::Constraint + Request::SoftConstraint)) {
             return;
         }
 
-        // lambda to set config for normal velocity constraints
+        // 为指定足端构造法向速度约束配置。SwingTrajectoryPlanner 提供该足端
+        // 在时刻 t 的期望 Z 向速度；如果启用 positionErrorGain，还会加入
+        // Z 向位置误差反馈，使足端高度贴近规划的摆腿高度曲线。
         auto eeNormalVelConConfig = [&](size_t footIndex) {
             EndEffectorLinearConstraint::Config config;
             config.b = (vector_t(1) << -swingTrajectoryPlannerPtr_->getZvelocityConstraint(footIndex, t)).
                     finished();
+            // Av 只取足端速度的 Z 分量，对应地面法向速度约束。
             config.Av = (matrix_t(1, 3) << 0.0, 0.0, 1.0).finished();
             if (!numerics::almost_eq(settings_.positionErrorGain, 0.0)) {
                 config.b(0) -= settings_.positionErrorGain * swingTrajectoryPlannerPtr_->getZpositionConstraint(
                     footIndex, t);
+                // Ax 只取足端位置的 Z 分量，用于高度误差反馈。
                 config.Ax = (matrix_t(1, 3) << 0.0, 0.0, settings_.positionErrorGain).finished();
             }
             return config;
         };
 
+        // 只有求解器请求约束时，才更新四个足端的 normalVelocity 约束参数。
         if (request.contains(Request::Constraint)) {
             for (size_t i = 0; i < info_.numThreeDofContacts; i++) {
                 eeNormalVelConConfigs_[i] = eeNormalVelConConfig(i);
@@ -91,8 +97,10 @@ namespace ocs2::legged_robot {
 
         const auto &model = pinocchioInterface_.getModel();
         auto &data = pinocchioInterface_.getData();
+        // 将 OCS2 的状态 x 转成 Pinocchio 使用的广义坐标 q。
         vector_t q = mappingPtr_->getPinocchioJointPosition(x);
         if (request.contains(Request::Approximation)) {
+            // 线性化/二次近似阶段需要更完整的运动学、雅可比和质心动力学导数缓存。
             forwardKinematics(model, data, q);
             updateFramePlacements(model, data);
             updateGlobalPlacements(model, data);
@@ -102,6 +110,7 @@ namespace ocs2::legged_robot {
             vector_t v = mappingPtr_->getPinocchioJointVelocity(x, u);
             updateCentroidalDynamicsDerivatives(pinocchioInterface_, info_, q, v);
         } else {
+            // 普通代价/约束评估只需要足端位姿等基础运动学信息。
             forwardKinematics(model, data, q);
             updateFramePlacements(model, data);
         }
