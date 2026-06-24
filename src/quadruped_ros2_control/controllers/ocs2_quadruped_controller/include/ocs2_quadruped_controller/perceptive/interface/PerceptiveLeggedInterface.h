@@ -19,6 +19,8 @@ namespace ocs2::legged_robot
                                   const std::string& referenceFile,
                                   FixedFootholdRegionSettings fixedFootholdRegionSettings =
                                   defaultFixedFootholdRegionSettings(),
+                                  FixedFootholdSequenceConfig fixedFootholdSequenceConfig =
+                                  defaultFixedFootholdSequenceConfig(),
                                   bool useHardFrictionConeConstraint = false);
 
         void setupOptimalControlProblem(const std::string& taskFile,
@@ -63,5 +65,6 @@ namespace ocs2::legged_robot
         std::shared_ptr<grid_map::SignedDistanceField> signedDistanceFieldPtr_;
         std::shared_ptr<PinocchioSphereInterface> pinocchioSphereInterfacePtr_;
         FixedFootholdRegionSettings fixedFootholdRegionSettings_;
+        FixedFootholdSequenceConfig fixedFootholdSequenceConfig_;
     };
 } // namespace ocs2::legged_robot

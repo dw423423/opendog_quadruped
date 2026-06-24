@@ -4,8 +4,15 @@
 
 #include <keyboard_input/KeyboardInput.h>
 
+namespace
+{
+    constexpr int kFootholdSequenceAdvanceCommand = 11;
+}
+
 KeyboardInput::KeyboardInput() : Node("keyboard_input_node") {
     publisher_ = create_publisher<control_input_msgs::msg::Inputs>("control_input", 10);
+    foothold_sequence_advance_publisher_ =
+        create_publisher<std_msgs::msg::Empty>("/foothold_sequence/advance", 10);
     timer_ = create_wall_timer(std::chrono::microseconds(100), std::bind(&KeyboardInput::timer_callback, this));
     inputs_ = control_input_msgs::msg::Inputs();
 
@@ -15,6 +22,7 @@ KeyboardInput::KeyboardInput() : Node("keyboard_input_node") {
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio_);
     RCLCPP_INFO(get_logger(), "Keyboard input node started.");
     RCLCPP_INFO(get_logger(), "Press 1-0 to switch between different modes");
+    RCLCPP_INFO(get_logger(), "Press g to advance fixed foothold sequence.");
     RCLCPP_INFO(get_logger(), "Use W/S/A/D and I/K/J/L to move the robot.");
     RCLCPP_INFO(get_logger(), "Please input keys, press Ctrl+C to quit.");
 }
@@ -22,6 +30,19 @@ KeyboardInput::KeyboardInput() : Node("keyboard_input_node") {
 void KeyboardInput::timer_callback() {
     if (kbhit()) {
         char key = getchar();
+        if (key == 'g' || key == 'G') {
+            foothold_sequence_advance_publisher_->publish(std_msgs::msg::Empty());
+            inputs_.lx = 0;
+            inputs_.ly = 0;
+            inputs_.rx = 0;
+            inputs_.ry = 0;
+            inputs_.command = kFootholdSequenceAdvanceCommand;
+            publisher_->publish(inputs_);
+            just_published_ = true;
+            reset_count_ = 100;
+            RCLCPP_INFO(get_logger(), "[FootholdSequence] advance key published: g");
+            return;
+        }
         check_command(key);
         if (inputs_.command == 0) check_value(key);
         else {

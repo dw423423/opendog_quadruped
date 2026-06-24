@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(control_input_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_executable(keyboard_input src/KeyboardInput.cpp)
 target_include_directories(keyboard_input
@@ -21,6 +22,7 @@ ament_target_dependencies(
         keyboard_input PUBLIC
         rclcpp
         control_input_msgs
+        std_msgs
 )
 
 install(TARGETS

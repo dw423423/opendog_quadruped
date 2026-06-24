@@ -51,6 +51,8 @@ namespace ocs2::legged_robot
         double default_kd_ = 6;
 
         int startup_log_count_ = 0;
+        bool actual_touchdown_contacts_initialized_ = false;
+        contact_flag_t last_actual_touchdown_contacts_{};
 
         vector_t optimized_state_, optimized_input_;
     };

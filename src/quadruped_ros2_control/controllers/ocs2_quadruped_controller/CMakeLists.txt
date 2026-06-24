@@ -17,6 +17,7 @@ set(CONTROLLER_INCLUDE_DEPENDS
         ocs2_legged_robot_ros
         ocs2_self_collision
         control_input_msgs
+        std_msgs
         angles
         nav_msgs
         qpoases_colcon
@@ -33,6 +34,7 @@ find_package(ament_cmake REQUIRED)
 foreach (Dependency IN ITEMS ${CONTROLLER_INCLUDE_DEPENDS})
     find_package(${Dependency} REQUIRED)
 endforeach ()
+find_package(yaml-cpp REQUIRED)
 # grid_map_sdf publicly includes pcl/point_cloud.h but does not propagate PCL
 # headers via its imported target.
 find_package(PCL REQUIRED COMPONENTS common)
@@ -88,6 +90,7 @@ target_include_directories(${PROJECT_NAME}
         src)
 target_link_libraries(${PROJECT_NAME}
         ${PCL_LIBRARIES}
+        yaml-cpp
 )
 ament_target_dependencies(${PROJECT_NAME}
         ${CONTROLLER_INCLUDE_DEPENDS}

@@ -90,12 +90,14 @@ namespace ocs2::legged_robot
                                                planarTerrainPtr,
                                                const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
                                                size_t numVertices,
-                                               FixedFootholdRegionSettings fixedFootholdRegionSettings)
+                                               FixedFootholdRegionSettings fixedFootholdRegionSettings,
+                                               FixedFootholdSequenceConfig fixedFootholdSequenceConfig)
         : info_(std::move(info)),
           numVertices_(numVertices),
           planarTerrainPtr_(std::move(planarTerrainPtr)),
           endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
-          fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings))
+          fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings)),
+          fixedFootholdSequenceManager_(std::move(fixedFootholdSequenceConfig))
     {
     }
 
@@ -210,7 +212,7 @@ namespace ocs2::legged_robot
                         auto convexRegion = convex_plane_decomposition::growConvexPolygonInsideShape(
                             projection.regionPtr->boundaryWithInset.boundary, projection.positionInTerrainFrame,
                             numVertices_, growthFactor);
-                        const bool useFixedRegion = fixedFootholdRegionSettings_.enable;
+                        const bool useFixedRegion = fixedFootholdRegionsEnabled();
                         const auto& fixedRegion = getFixedFootholdRegion(leg);
                         std::string selectedRegion = "perceptive";
                         {
@@ -232,6 +234,19 @@ namespace ocs2::legged_robot
                                 }
                                 convexRegion = makeFixedTargetRegion(fixedRegion, numVertices_);
                                 selectedRegion = fixedFootholdRegionToString(leg);
+                                if (logFootholdRegion && fixedFootholdSequenceManager_.isEnabled())
+                                {
+                                    std::cerr << std::fixed << std::setprecision(3)
+                                        << "[FootholdSequence] selector active_set="
+                                        << fixedFootholdSequenceManager_.getActiveSetIndex()
+                                        << " set_name=" << fixedFootholdSequenceManager_.getActiveSetName()
+                                        << " leg=" << leg
+                                        << " name=" << fixedRegion.name
+                                        << " region=x[" << fixedRegion.xMin << "," << fixedRegion.xMax << "]"
+                                        << ",y[" << fixedRegion.yMin << "," << fixedRegion.yMax << "]"
+                                        << ",z=" << fixedRegion.z
+                                        << std::endl;
+                                }
                             }
                         }
 
@@ -243,8 +258,12 @@ namespace ocs2::legged_robot
                         {
                             std::cerr << std::fixed << std::setprecision(3)
                                 << "[FootholdRegion] leg=" << leg
-                                << " fixed_enabled=" << static_cast<int>(fixedFootholdRegionSettings_.enable)
-                                << " frame=" << fixedFootholdRegionSettings_.frame
+                                << " fixed_enabled=" << static_cast<int>(fixedFootholdRegionsEnabled())
+                                << " sequence_enabled="
+                                << static_cast<int>(fixedFootholdSequenceManager_.isEnabled())
+                                << " frame=" << (fixedFootholdSequenceManager_.isEnabled()
+                                                     ? fixedFootholdSequenceManager_.getConfig().frame
+                                                     : fixedFootholdRegionSettings_.frame)
                                 << " selected_region=" << selectedRegion
                                 << " phase_start=" << standStartTime
                                 << " phase_end=" << standFinalTime
@@ -253,7 +272,7 @@ namespace ocs2::legged_robot
                                 << projection.positionInWorld.y() << ","
                                 << projection.positionInWorld.z() << ")"
                                 << " vertices=" << polygonToString(convexRegion);
-                            if (fixedFootholdRegionSettings_.enable)
+                            if (fixedFootholdRegionsEnabled())
                             {
                                 std::cerr << " inside_nominal_xy="
                                     << (isInsideFixedFootholdRegionXY(leg, footPos) ? "true" : "false");

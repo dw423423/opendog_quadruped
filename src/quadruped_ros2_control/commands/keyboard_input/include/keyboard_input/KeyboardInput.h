@@ -7,6 +7,7 @@
 #define KEYBOARDINPUT_H
 #include <rclcpp/rclcpp.hpp>
 #include <control_input_msgs/msg/inputs.hpp>
+#include <std_msgs/msg/empty.hpp>
 #include <termios.h>
 
 
@@ -39,6 +40,7 @@ private:
 
     control_input_msgs::msg::Inputs inputs_;
     rclcpp::Publisher<control_input_msgs::msg::Inputs>::SharedPtr publisher_;
+    rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr foothold_sequence_advance_publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 
     bool just_published_ = false;

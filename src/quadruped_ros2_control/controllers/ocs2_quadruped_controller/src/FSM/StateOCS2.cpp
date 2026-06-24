@@ -64,7 +64,7 @@ namespace ocs2::legged_robot
             pinocchio::updateFramePlacements(model, data);
         }
 
-        const ConvexRegionSelector* getConvexRegionSelector(CtrlComponent& ctrlComponent)
+        ConvexRegionSelector* getConvexRegionSelector(CtrlComponent& ctrlComponent)
         {
             const auto referenceManagerPtr = ctrlComponent.legged_interface_->getReferenceManagerPtr();
             auto* perceptiveReferenceManager =
@@ -108,6 +108,7 @@ namespace ocs2::legged_robot
     void StateOCS2::enter()
     {
         startup_log_count_ = 0;
+        actual_touchdown_contacts_initialized_ = false;
 
         const std::array<double, 12> stance_joint_targets = {
             0.0, 0.72, -1.44,
@@ -157,8 +158,71 @@ namespace ocs2::legged_robot
                                                             optimized_input_, planned_mode);
 
         static scalar_t lastPredictedTouchdownLogTime = -1.0;
+        static scalar_t lastWaitingForAdvanceLogTime = -1.0;
         const auto& policy = ctrl_component_->mpc_mrt_interface_->getPolicy();
-        const auto* convexRegionSelector = getConvexRegionSelector(*ctrl_component_);
+        auto* convexRegionSelector = getConvexRegionSelector(*ctrl_component_);
+        if (ctrl_component_->consumeFootholdSequenceAdvanceRequest())
+        {
+            if (convexRegionSelector == nullptr || !convexRegionSelector->fixedFootholdSequenceEnabled())
+            {
+                RCLCPP_INFO(node_->get_logger(),
+                            "[FootholdSequence] ignore_advance_key reason=sequence_disabled");
+            }
+            else
+            {
+                auto& sequenceManager = convexRegionSelector->getFixedFootholdSequenceManager();
+                RCLCPP_INFO(node_->get_logger(),
+                            "[FootholdSequence] advance_key_received key=%s state=%s",
+                            sequenceManager.getConfig().advanceKey.c_str(),
+                            sequenceManager.getStateName());
+                if (sequenceManager.isFinalDone())
+                {
+                    RCLCPP_INFO(node_->get_logger(),
+                                "[FootholdSequence] ignore_advance_key reason=final_done active_set=%zu",
+                                sequenceManager.getActiveSetIndex());
+                }
+                else if (!sequenceManager.isWaitingForAdvance())
+                {
+                    RCLCPP_INFO(node_->get_logger(),
+                                "[FootholdSequence] ignore_advance_key reason=current_set_not_completed "
+                                "active_set=%zu reached=%s",
+                                sequenceManager.getActiveSetIndex(),
+                                sequenceManager.reachedToString().c_str());
+                }
+                else
+                {
+                    const size_t activeSetBefore = sequenceManager.getActiveSetIndex();
+                    if (sequenceManager.advanceToNextSetByUser())
+                    {
+                        RCLCPP_INFO(node_->get_logger(),
+                                    "[FootholdSequence] advance_set_by_key from=%zu to=%zu name=%s "
+                                    "reset_reached=%s",
+                                    activeSetBefore,
+                                    sequenceManager.getActiveSetIndex(),
+                                    sequenceManager.getActiveSetName().c_str(),
+                                    sequenceManager.reachedToString().c_str());
+                        RCLCPP_INFO(node_->get_logger(),
+                                    "[FootholdSequence] request_gait %s",
+                                    sequenceManager.getConfig().resumeGaitAfterAdvance.c_str());
+                        ctrl_component_->requestGaitMode(sequenceManager.getConfig().resumeGaitAfterAdvance);
+                    }
+                }
+            }
+        }
+        if (convexRegionSelector != nullptr && convexRegionSelector->fixedFootholdSequenceEnabled())
+        {
+            const auto& sequenceManager = convexRegionSelector->getFixedFootholdSequenceManager();
+            if (sequenceManager.isWaitingForAdvance() &&
+                (lastWaitingForAdvanceLogTime < 0.0 ||
+                    ctrl_component_->observation_.time - lastWaitingForAdvanceLogTime > 1.0))
+            {
+                RCLCPP_INFO(node_->get_logger(),
+                            "[FootholdSequence] state=WAITING_FOR_ADVANCE active_set=%zu name=%s",
+                            sequenceManager.getActiveSetIndex(),
+                            sequenceManager.getActiveSetName().c_str());
+                lastWaitingForAdvanceLogTime = ctrl_component_->observation_.time;
+            }
+        }
         if ((lastPredictedTouchdownLogTime < 0.0 ||
                 ctrl_component_->observation_.time - lastPredictedTouchdownLogTime > 0.25) &&
             !policy.timeTrajectory_.empty() &&
@@ -220,13 +284,11 @@ namespace ocs2::legged_robot
             lastPredictedTouchdownLogTime = ctrl_component_->observation_.time;
         }
 
-        static bool actualTouchdownContactsInitialized = false;
-        static contact_flag_t lastActualTouchdownContacts{};
         const auto actualContacts = modeNumber2StanceLeg(ctrl_component_->observation_.mode);
-        if (!actualTouchdownContactsInitialized)
+        if (!actual_touchdown_contacts_initialized_)
         {
-            lastActualTouchdownContacts = actualContacts;
-            actualTouchdownContactsInitialized = true;
+            last_actual_touchdown_contacts_ = actualContacts;
+            actual_touchdown_contacts_initialized_ = true;
         }
         else
         {
@@ -240,9 +302,10 @@ namespace ocs2::legged_robot
                 const auto& fixedRegionSettings = convexRegionSelector->getFixedFootholdRegionSettings();
                 for (size_t leg = 0; leg < fixedRegionSettings.regions.size(); ++leg)
                 {
-                    if (!lastActualTouchdownContacts[leg] && actualContacts[leg])
+                    if (!last_actual_touchdown_contacts_[leg] && actualContacts[leg])
                     {
                         const auto& footPosition = actualFootPositions[leg];
+                        const bool inside = convexRegionSelector->isInsideFixedFootholdRegionXY(leg, footPosition);
                         RCLCPP_INFO(node_->get_logger(),
                                     "[ACTUAL_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
                                     "time=%.3f actual_foot=(%.3f, %.3f, %.3f) inside_xy=%s",
@@ -253,13 +316,91 @@ namespace ocs2::legged_robot
                                     footPosition.x(),
                                     footPosition.y(),
                                     footPosition.z(),
-                                    convexRegionSelector->isInsideFixedFootholdRegionXY(leg, footPosition)
-                                        ? "true"
-                                        : "false");
+                                    inside ? "true" : "false");
+
+                        if (convexRegionSelector->fixedFootholdSequenceEnabled())
+                        {
+                            auto& sequenceManager = convexRegionSelector->getFixedFootholdSequenceManager();
+                            const size_t activeSetBefore = sequenceManager.getActiveSetIndex();
+                            const std::string activeSetNameBefore = sequenceManager.getActiveSetName();
+                            const bool insideSequenceRegion = sequenceManager.markLegTouchdown(leg, footPosition);
+                            RCLCPP_INFO(node_->get_logger(),
+                                        "[FootholdSequence] touchdown leg=%zu name=%s active_set=%zu "
+                                        "set_name=%s actual_foot=(%.3f,%.3f,%.3f) inside_xy=%s reached=%s",
+                                        leg,
+                                        sequenceManager.getActiveRegion(leg).name,
+                                        activeSetBefore,
+                                        activeSetNameBefore.c_str(),
+                                        footPosition.x(),
+                                        footPosition.y(),
+                                        footPosition.z(),
+                                        insideSequenceRegion ? "true" : "false",
+                                        sequenceManager.reachedToString().c_str());
+
+                            if (sequenceManager.isCurrentSetCompleted())
+                            {
+                                const std::string reachedBeforeAdvance = sequenceManager.reachedToString();
+                                if (sequenceManager.isFinalSet())
+                                {
+                                    if (sequenceManager.enterFinalDoneIfCompleted() &&
+                                        sequenceManager.consumeFinalCompletionAnnouncement())
+                                    {
+                                        RCLCPP_INFO(node_->get_logger(),
+                                                    "[FootholdSequence] final_set_completed index=%zu name=%s "
+                                                    "reached=%s",
+                                                    sequenceManager.getActiveSetIndex(),
+                                                    sequenceManager.getActiveSetName().c_str(),
+                                                    sequenceManager.reachedToString().c_str());
+                                        if (sequenceManager.consumeFinalStanceRequest())
+                                        {
+                                            RCLCPP_INFO(node_->get_logger(),
+                                                        "[FootholdSequence] request_stance "
+                                                        "auto_stance_on_final=true");
+                                            ctrl_component_->requestStanceMode();
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (sequenceManager.tryAdvanceSetAfterTouchdown())
+                                    {
+                                        RCLCPP_INFO(node_->get_logger(),
+                                                    "[FootholdSequence] set_completed index=%zu name=%s reached=%s",
+                                                    activeSetBefore,
+                                                    activeSetNameBefore.c_str(),
+                                                    reachedBeforeAdvance.c_str());
+                                        RCLCPP_INFO(node_->get_logger(),
+                                                    "[FootholdSequence] advance_set from=%zu to=%zu name=%s",
+                                                    activeSetBefore,
+                                                    sequenceManager.getActiveSetIndex(),
+                                                    sequenceManager.getActiveSetName().c_str());
+                                    }
+                                    else if (sequenceManager.enterWaitingForAdvanceIfCompleted())
+                                    {
+                                        RCLCPP_INFO(node_->get_logger(),
+                                                    "[FootholdSequence] set_completed index=%zu name=%s reached=%s",
+                                                    activeSetBefore,
+                                                    activeSetNameBefore.c_str(),
+                                                    reachedBeforeAdvance.c_str());
+                                        RCLCPP_INFO(node_->get_logger(),
+                                                    "[FootholdSequence] waiting_for_advance key=%s "
+                                                    "request_stance=%s",
+                                                    sequenceManager.getConfig().advanceKey.c_str(),
+                                                    sequenceManager.shouldRequestStanceOnSetCompleted()
+                                                        ? "true"
+                                                        : "false");
+                                        if (sequenceManager.consumeSetCompletedStanceRequest())
+                                        {
+                                            ctrl_component_->requestStanceMode();
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
-            lastActualTouchdownContacts = actualContacts;
+            last_actual_touchdown_contacts_ = actualContacts;
         }
 
         // Whole body control

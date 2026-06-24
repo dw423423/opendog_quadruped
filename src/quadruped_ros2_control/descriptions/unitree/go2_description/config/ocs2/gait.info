@@ -139,10 +139,10 @@ static_walk
 {
   modeSequence
   {
-    [0]     LF_RF_RH
-    [1]     RF_LH_RH
-    [2]     LF_RF_LH
-    [3]     LF_LH_RH
+    [0]     RF_LH_RH
+    [1]     LF_RF_RH
+    [2]     LF_LH_RH
+    [3]     LF_RF_LH
   }
   switchingTimes
   {

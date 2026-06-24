@@ -28,6 +28,11 @@ namespace ocs2::legged_robot
         ~TargetManager() = default;
 
         void update(SystemObservation& observation);
+        void clearVelocityCommand()
+        {
+            buffer_.reset();
+            twist_count = 0;
+        }
 
     private:
         TargetTrajectories targetPoseToTargetTrajectories(const vector_t& targetPose,

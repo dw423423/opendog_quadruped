@@ -14,10 +14,12 @@
   <depend>controller_common</depend>
   <depend>pluginlib</depend>
   <depend>control_input_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>qpoases_colcon</depend>
   <depend>ocs2_self_collision</depend>
   <depend>ocs2_legged_robot_ros</depend>
   <depend>angles</depend>
+  <depend>yaml-cpp</depend>
 
   <!--/ Dependencies for Perceptive Mode -->
   <depend>convex_plane_decomposition_msgs</depend>

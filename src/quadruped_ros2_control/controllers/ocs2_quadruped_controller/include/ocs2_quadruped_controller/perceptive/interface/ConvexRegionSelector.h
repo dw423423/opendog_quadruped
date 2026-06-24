@@ -24,7 +24,9 @@ namespace ocs2::legged_robot
                              std::shared_ptr<convex_plane_decomposition::PlanarTerrain> PlanarTerrainPtr,
                              const EndEffectorKinematics<scalar_t>& endEffectorKinematics, size_t numVertices,
                              FixedFootholdRegionSettings fixedFootholdRegionSettings =
-                             defaultFixedFootholdRegionSettings());
+                             defaultFixedFootholdRegionSettings(),
+                             FixedFootholdSequenceConfig fixedFootholdSequenceConfig =
+                             defaultFixedFootholdSequenceConfig());
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                     TargetTrajectories& targetTrajectories);
@@ -51,20 +53,47 @@ namespace ocs2::legged_robot
             return fixedFootholdRegionSettings_;
         }
 
-        bool fixedFootholdRegionsEnabled() const { return fixedFootholdRegionSettings_.enable; }
+        const FixedFootholdSequenceManager& getFixedFootholdSequenceManager() const
+        {
+            return fixedFootholdSequenceManager_;
+        }
+
+        FixedFootholdSequenceManager& getFixedFootholdSequenceManager()
+        {
+            return fixedFootholdSequenceManager_;
+        }
+
+        bool fixedFootholdSequenceEnabled() const { return fixedFootholdSequenceManager_.isEnabled(); }
+
+        bool fixedFootholdRegionsEnabled() const
+        {
+            return fixedFootholdSequenceManager_.isEnabled() || fixedFootholdRegionSettings_.enable;
+        }
 
         const FixedFootholdRegion& getFixedFootholdRegion(size_t leg) const
         {
+            if (fixedFootholdSequenceManager_.isEnabled())
+            {
+                return fixedFootholdSequenceManager_.getActiveRegion(leg);
+            }
             return legged_robot::getFixedFootholdRegion(fixedFootholdRegionSettings_, leg);
         }
 
         bool isInsideFixedFootholdRegionXY(size_t leg, const vector3_t& position) const
         {
+            if (fixedFootholdSequenceManager_.isEnabled())
+            {
+                return fixedFootholdSequenceManager_.isInsideActiveRegionXY(leg, position);
+            }
             return legged_robot::isInsideFixedFootholdRegionXY(fixedFootholdRegionSettings_, leg, position);
         }
 
         std::string fixedFootholdRegionToString(size_t leg) const
         {
+            if (fixedFootholdSequenceManager_.isEnabled())
+            {
+                return fixedFootholdSequenceManager_.activeRegionToString(leg);
+            }
             return legged_robot::fixedFootholdRegionToString(fixedFootholdRegionSettings_, leg);
         }
 
@@ -93,5 +122,6 @@ namespace ocs2::legged_robot
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
         FixedFootholdRegionSettings fixedFootholdRegionSettings_;
+        FixedFootholdSequenceManager fixedFootholdSequenceManager_;
     };
 } // namespace ocs2::legged_robot

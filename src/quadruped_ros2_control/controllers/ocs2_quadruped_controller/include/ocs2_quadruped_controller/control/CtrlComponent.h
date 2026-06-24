@@ -4,6 +4,7 @@
 
 #ifndef CTRLCOMPONENT_H
 #define CTRLCOMPONENT_H
+#include <atomic>
 #include <memory>
 #include <string>
 #include <ocs2_mpc/SystemObservation.h>
@@ -16,6 +17,7 @@
 #include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/FootPlacementVisualization.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/SphereVisualization.h>
+#include <std_msgs/msg/empty.hpp>
 
 #include "TargetManager.h"
 
@@ -39,6 +41,9 @@ namespace ocs2::legged_robot
         void setupStateEstimate(const std::string& estimator_type);
         void updateState(const rclcpp::Time& time, const rclcpp::Duration& period);
         void init();
+        void requestStanceMode();
+        bool requestGaitMode(const std::string& gait_name);
+        bool consumeFootholdSequenceAdvanceRequest();
 
         std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_;
         std::unique_ptr<LeggedInterface> legged_interface_;
@@ -63,9 +68,11 @@ namespace ocs2::legged_robot
         void setupMpc();
         void setupMrt();
         FixedFootholdRegionSettings loadFixedFootholdRegionSettings();
+        FixedFootholdSequenceConfig loadFixedFootholdSequenceConfig(const std::string& config_file);
 
         bool enable_perceptive_ = false;
         FixedFootholdRegionSettings fixed_foothold_region_settings_;
+        FixedFootholdSequenceConfig fixed_foothold_sequence_config_;
         CtrlInterfaces& ctrl_interfaces_;
         std::unique_ptr<StateEstimateBase> estimator_;
         std::unique_ptr<CentroidalModelRbdConversions> rbd_conversions_;
@@ -73,6 +80,8 @@ namespace ocs2::legged_robot
 
         std::unique_ptr<FootPlacementVisualization> footPlacementVisualizationPtr_;
         std::unique_ptr<SphereVisualization> sphereVisualizationPtr_;
+        rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr foothold_sequence_advance_sub_;
+        std::atomic_bool foothold_sequence_advance_requested_{false};
 
         std::vector<std::string> joint_names_;
         std::vector<std::string> feet_names_;

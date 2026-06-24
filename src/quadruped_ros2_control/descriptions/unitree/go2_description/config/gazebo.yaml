@@ -101,6 +101,72 @@ ocs2_quadruped_controller:
         y_max: -0.10
         z: 0.0
 
+    fixed_foothold_sequence:
+      enable: true
+      frame: "world"
+      manual_advance: true
+      advance_key: "g"
+      pause_gait_on_set_completed: true
+      resume_gait_after_advance: "static_walk"
+      auto_stance_on_final: true
+      stable_hold_time: 0.3
+      active_set: 0
+      set_names:
+        - set0
+        - set1
+
+      set0:
+        FL:
+          x_min: 0.25
+          x_max: 0.35
+          y_min: 0.10
+          y_max: 0.18
+          z: 0.0
+        FR:
+          x_min: 0.25
+          x_max: 0.35
+          y_min: -0.18
+          y_max: -0.10
+          z: 0.0
+        RL:
+          x_min: -0.05
+          x_max: 0.05
+          y_min: 0.10
+          y_max: 0.18
+          z: 0.0
+        RR:
+          x_min: -0.05
+          x_max: 0.05
+          y_min: -0.18
+          y_max: -0.10
+          z: 0.0
+
+      set1:
+        FL:
+          x_min: 0.45
+          x_max: 0.55
+          y_min: 0.10
+          y_max: 0.18
+          z: 0.0
+        FR:
+          x_min: 0.45
+          x_max: 0.55
+          y_min: -0.18
+          y_max: -0.10
+          z: 0.0
+        RL:
+          x_min: 0.15
+          x_max: 0.25
+          y_min: 0.10
+          y_max: 0.18
+          z: 0.0
+        RR:
+          x_min: 0.15
+          x_max: 0.25
+          y_min: -0.18
+          y_max: -0.10
+          z: 0.0
+
     imu_name: "imu_sensor"
     base_name: "base"
 
