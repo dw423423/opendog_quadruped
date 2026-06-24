@@ -21,6 +21,8 @@
 #include <ocs2_quadruped_controller/perceptive/synchronize/PlanarTerrainReceiver.h>
 #include <ocs2_sqp/SqpMpc.h>
 
+#include <array>
+
 namespace ocs2::legged_robot
 {
     CtrlComponent::CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode>& node,
@@ -34,6 +36,7 @@ namespace ocs2::legged_robot
             node_->declare_parameter("enable_perceptive", enable_perceptive_);
         }
         enable_perceptive_ = node_->get_parameter("enable_perceptive").as_bool();
+        fixed_foothold_region_settings_ = loadFixedFootholdRegionSettings();
 
 
         const std::string package_share_directory = ament_index_cpp::get_package_share_directory(robot_pkg_);
@@ -52,6 +55,7 @@ namespace ocs2::legged_robot
         ee_kinematics_ = std::make_unique<PinocchioEndEffectorKinematics>(
             legged_interface_->getPinocchioInterface(), pinocchio_mapping,
             legged_interface_->modelSettings().contactNames3DoF);
+        ee_kinematics_->setPinocchioInterface(legged_interface_->getPinocchioInterface());
 
         rbd_conversions_ = std::make_unique<CentroidalModelRbdConversions>(legged_interface_->getPinocchioInterface(),
                                                                            legged_interface_->getCentroidalModelInfo());
@@ -155,7 +159,8 @@ namespace ocs2::legged_robot
     {
         if (enable_perceptive_)
         {
-            legged_interface_ = std::make_unique<PerceptiveLeggedInterface>(task_file_, urdf_file_, reference_file_);
+            legged_interface_ = std::make_unique<PerceptiveLeggedInterface>(
+                task_file_, urdf_file_, reference_file_, fixed_foothold_region_settings_);
             RCLCPP_INFO(node_->get_logger(),
                         "[CtrlComponent] enable_perceptive=true, created PerceptiveLeggedInterface");
         }
@@ -190,6 +195,71 @@ namespace ocs2::legged_robot
                             "[CtrlComponent] PinocchioSphereInterface unavailable, skipping sphere visualization");
             }
         }
+    }
+
+    FixedFootholdRegionSettings CtrlComponent::loadFixedFootholdRegionSettings()
+    {
+        FixedFootholdRegionSettings settings = defaultFixedFootholdRegionSettings();
+
+        auto getBoolParam = [this](const std::string& name, bool defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_bool();
+        };
+
+        auto getStringParam = [this](const std::string& name, const std::string& defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_string();
+        };
+
+        auto getDoubleParam = [this](const std::string& name, double defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_double();
+        };
+
+        settings.enable = getBoolParam("fixed_foothold_regions.enable", settings.enable);
+        settings.frame = getStringParam("fixed_foothold_regions.frame", settings.frame);
+
+        for (auto& region : settings.regions)
+        {
+            const std::string prefix = "fixed_foothold_regions." + std::string(region.name) + ".";
+            region.xMin = getDoubleParam(prefix + "x_min", region.xMin);
+            region.xMax = getDoubleParam(prefix + "x_max", region.xMax);
+            region.yMin = getDoubleParam(prefix + "y_min", region.yMin);
+            region.yMax = getDoubleParam(prefix + "y_max", region.yMax);
+            region.z = getDoubleParam(prefix + "z", region.z);
+        }
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "[FixedFootholdRegions] enable=%d frame=%s",
+                    static_cast<int>(settings.enable), settings.frame.c_str());
+        if (settings.enable && settings.frame != "world")
+        {
+            RCLCPP_WARN(node_->get_logger(),
+                        "[FixedFootholdRegions] frame=%s is configured, but only world-frame fixed regions "
+                        "are currently implemented.",
+                        settings.frame.c_str());
+        }
+        for (size_t leg = 0; leg < settings.regions.size(); ++leg)
+        {
+            const auto& region = settings.regions[leg];
+            RCLCPP_INFO(node_->get_logger(),
+                        "[FixedFootholdRegions] leg=%zu name=%s x[%.3f,%.3f] y[%.3f,%.3f] z=%.3f",
+                        leg, region.name, region.xMin, region.xMax, region.yMin, region.yMax, region.z);
+        }
+
+        return settings;
     }
 
     /**

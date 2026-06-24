@@ -13,6 +13,7 @@
 #include <ocs2_core/misc/Benchmark.h>
 #include <ocs2_mpc/MPC_MRT_Interface.h>
 #include <ocs2_legged_robot_ros/visualization/LeggedRobotVisualizer.h>
+#include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/FootPlacementVisualization.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/SphereVisualization.h>
 
@@ -61,8 +62,10 @@ namespace ocs2::legged_robot
         void setupLeggedInterface();
         void setupMpc();
         void setupMrt();
+        FixedFootholdRegionSettings loadFixedFootholdRegionSettings();
 
         bool enable_perceptive_ = false;
+        FixedFootholdRegionSettings fixed_foothold_region_settings_;
         CtrlInterfaces& ctrl_interfaces_;
         std::unique_ptr<StateEstimateBase> estimator_;
         std::unique_ptr<CentroidalModelRbdConversions> rbd_conversions_;

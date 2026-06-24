@@ -7,6 +7,7 @@
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include <ocs2_core/misc/Lookup.h>
 #include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
+#include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 
 #include <convex_plane_decomposition/ConvexRegionGrowing.h>
 
@@ -15,45 +16,40 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 
 namespace ocs2::legged_robot
 {
     namespace
     {
-        constexpr size_t kFlLeg = 0;
-        constexpr scalar_t kFlRegionXMin = 0.25;
-        constexpr scalar_t kFlRegionXMax = 0.35;
-        constexpr scalar_t kFlRegionYMin = 0.10;
-        constexpr scalar_t kFlRegionYMax = 0.18;
-        constexpr scalar_t kFlRegionZ = 0.0;
-
-        convex_plane_decomposition::CgalPolygon2d makeFlTargetRegion(size_t numVertices)
+        convex_plane_decomposition::CgalPolygon2d makeFixedTargetRegion(const FixedFootholdRegion& region,
+                                                                        size_t numVertices)
         {
             convex_plane_decomposition::CgalPolygon2d polygon;
             numVertices = std::max<size_t>(4, numVertices);
             for (size_t i = 0; i < numVertices; ++i)
             {
                 const scalar_t phase = 4.0 * static_cast<scalar_t>(i) / static_cast<scalar_t>(numVertices);
-                scalar_t x = kFlRegionXMax;
-                scalar_t y = kFlRegionYMax;
+                scalar_t x = region.xMax;
+                scalar_t y = region.yMax;
                 if (phase < 1.0)
                 {
-                    x = kFlRegionXMax + phase * (kFlRegionXMin - kFlRegionXMax);
+                    x = region.xMax + phase * (region.xMin - region.xMax);
                 }
                 else if (phase < 2.0)
                 {
-                    x = kFlRegionXMin;
-                    y = kFlRegionYMax + (phase - 1.0) * (kFlRegionYMin - kFlRegionYMax);
+                    x = region.xMin;
+                    y = region.yMax + (phase - 1.0) * (region.yMin - region.yMax);
                 }
                 else if (phase < 3.0)
                 {
-                    x = kFlRegionXMin + (phase - 2.0) * (kFlRegionXMax - kFlRegionXMin);
-                    y = kFlRegionYMin;
+                    x = region.xMin + (phase - 2.0) * (region.xMax - region.xMin);
+                    y = region.yMin;
                 }
                 else
                 {
-                    y = kFlRegionYMin + (phase - 3.0) * (kFlRegionYMax - kFlRegionYMin);
+                    y = region.yMin + (phase - 3.0) * (region.yMax - region.yMin);
                 }
                 polygon.push_back(convex_plane_decomposition::CgalPoint2d(x, y));
             }
@@ -77,13 +73,6 @@ namespace ocs2::legged_robot
             return stream.str();
         }
 
-        bool isInsideFlTargetRegion(const vector3_t& position)
-        {
-            return position.x() >= kFlRegionXMin && position.x() <= kFlRegionXMax &&
-                position.y() >= kFlRegionYMin && position.y() <= kFlRegionYMax &&
-                std::abs(position.z() - kFlRegionZ) < 0.05;
-        }
-
         bool shouldLogFootholdRegion(scalar_t initTime)
         {
             static scalar_t lastLogTime = -1.0;
@@ -100,11 +89,13 @@ namespace ocs2::legged_robot
                                                std::shared_ptr<convex_plane_decomposition::PlanarTerrain>
                                                planarTerrainPtr,
                                                const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
-                                               size_t numVertices)
+                                               size_t numVertices,
+                                               FixedFootholdRegionSettings fixedFootholdRegionSettings)
         : info_(std::move(info)),
           numVertices_(numVertices),
           planarTerrainPtr_(std::move(planarTerrainPtr)),
-          endEffectorKinematicsPtr_(endEffectorKinematics.clone())
+          endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
+          fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings))
     {
     }
 
@@ -136,6 +127,7 @@ namespace ocs2::legged_robot
         const auto& eventTimes = modeSchedule.eventTimes;
         const auto contactFlagStocks = extractContactFlags(modeSequence);
         const size_t numPhases = modeSequence.size();
+        const bool logFootholdRegion = shouldLogFootholdRegion(initTime);
 
         // Find start and final index of time for legs
         feet_array_t<std::vector<int>> startIndices;
@@ -144,6 +136,12 @@ namespace ocs2::legged_robot
         {
             startIndices[leg] = std::vector<int>(numPhases, 0);
             finalIndices[leg] = std::vector<int>(numPhases, 0);
+            const bool hasSwingPhase = std::any_of(contactFlagStocks[leg].begin(), contactFlagStocks[leg].end(),
+                                                   [](bool contact) { return !contact; });
+            if (!hasSwingPhase)
+            {
+                continue;
+            }
             // find the startTime and finalTime indices for swing feet
             for (size_t i = 0; i < numPhases; i++)
             {
@@ -165,6 +163,19 @@ namespace ocs2::legged_robot
             nominalFootholds_[leg].resize(numPhases);
             middleTimes_[leg].clear();
             initStandFinalTime_[leg] = 0;
+            const bool hasSwingPhase = std::any_of(contactFlagStocks[leg].begin(), contactFlagStocks[leg].end(),
+                                                   [](bool contact) { return !contact; });
+            if (!hasSwingPhase)
+            {
+                initStandFinalTime_[leg] = std::numeric_limits<scalar_t>::infinity();
+                if (logFootholdRegion)
+                {
+                    std::cerr << "[FootholdRegion] leg=" << leg
+                        << " has no swing phase; fixed foothold constraint disabled for this schedule"
+                        << std::endl;
+                }
+                continue;
+            }
 
             scalar_t lastStandMiddleTime = NAN;
             // Stand leg foot
@@ -199,35 +210,42 @@ namespace ocs2::legged_robot
                         auto convexRegion = convex_plane_decomposition::growConvexPolygonInsideShape(
                             projection.regionPtr->boundaryWithInset.boundary, projection.positionInTerrainFrame,
                             numVertices_, growthFactor);
-                        const bool useManualRegion = leg == kFlLeg;
-                        if (useManualRegion)
+                        const bool useFixedRegion = fixedFootholdRegionSettings_.enable;
+                        const auto& fixedRegion = getFixedFootholdRegion(leg);
+                        std::string selectedRegion = "perceptive";
                         {
-                            const vector3_t targetCenter(
-                                0.5 * (kFlRegionXMin + kFlRegionXMax),
-                                0.5 * (kFlRegionYMin + kFlRegionYMax),
-                                kFlRegionZ);
-                            projection = getBestPlanarRegionAtPositionInWorld(
-                                targetCenter, planarTerrain_.planarRegions, penaltyFunction);
-                            if (projection.regionPtr != nullptr)
+                            if (useFixedRegion)
                             {
-                                const vector3_t targetCenterInTerrain =
-                                    projection.regionPtr->transformPlaneToWorld.inverse() * targetCenter;
-                                projection.positionInTerrainFrame = convex_plane_decomposition::CgalPoint2d(
-                                    targetCenterInTerrain.x(), targetCenterInTerrain.y());
-                                projection.positionInWorld = targetCenter;
+                                const vector3_t targetCenter(
+                                    0.5 * (fixedRegion.xMin + fixedRegion.xMax),
+                                    0.5 * (fixedRegion.yMin + fixedRegion.yMax),
+                                    fixedRegion.z);
+                                projection = getBestPlanarRegionAtPositionInWorld(
+                                    targetCenter, planarTerrain_.planarRegions, penaltyFunction);
+                                if (projection.regionPtr != nullptr)
+                                {
+                                    const vector3_t targetCenterInTerrain =
+                                        projection.regionPtr->transformPlaneToWorld.inverse() * targetCenter;
+                                    projection.positionInTerrainFrame = convex_plane_decomposition::CgalPoint2d(
+                                        targetCenterInTerrain.x(), targetCenterInTerrain.y());
+                                    projection.positionInWorld = targetCenter;
+                                }
+                                convexRegion = makeFixedTargetRegion(fixedRegion, numVertices_);
+                                selectedRegion = fixedFootholdRegionToString(leg);
                             }
-                            convexRegion = makeFlTargetRegion(numVertices_);
                         }
 
                         feetProjections_[leg][i] = projection;
                         convexPolygons_[leg][i] = convexRegion;
                         nominalFootholds_[leg][i] = footPos;
                         middleTimes_[leg].push_back(standMiddleTime);
-                        if (shouldLogFootholdRegion(initTime))
+                        if (logFootholdRegion)
                         {
                             std::cerr << std::fixed << std::setprecision(3)
                                 << "[FootholdRegion] leg=" << leg
-                                << " use_manual_region=" << static_cast<int>(useManualRegion)
+                                << " fixed_enabled=" << static_cast<int>(fixedFootholdRegionSettings_.enable)
+                                << " frame=" << fixedFootholdRegionSettings_.frame
+                                << " selected_region=" << selectedRegion
                                 << " phase_start=" << standStartTime
                                 << " phase_end=" << standFinalTime
                                 << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
@@ -235,10 +253,10 @@ namespace ocs2::legged_robot
                                 << projection.positionInWorld.y() << ","
                                 << projection.positionInWorld.z() << ")"
                                 << " vertices=" << polygonToString(convexRegion);
-                            if (leg == kFlLeg)
+                            if (fixedFootholdRegionSettings_.enable)
                             {
-                                std::cerr << " inside_nominal_fl_region="
-                                    << static_cast<int>(isInsideFlTargetRegion(footPos));
+                                std::cerr << " inside_nominal_xy="
+                                    << (isInsideFixedFootholdRegionXY(leg, footPos) ? "true" : "false");
                             }
                             std::cerr << std::endl;
                         }
@@ -287,7 +305,7 @@ namespace ocs2::legged_robot
     {
         const size_t numPhases = contactFlagStock.size();
 
-        if (!contactFlagStock[index])
+        if (numPhases < 2 || !contactFlagStock[index])
         {
             return {0, 0};
         }

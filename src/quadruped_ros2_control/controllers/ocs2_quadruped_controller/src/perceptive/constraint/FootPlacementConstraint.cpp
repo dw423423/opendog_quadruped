@@ -6,11 +6,23 @@
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h"
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
+#include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
+
+#include <array>
 #include <iomanip>
 #include <iostream>
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        template <typename VectorLike>
+        const auto& selectLegKinematics(const VectorLike& values, size_t leg)
+        {
+            return values.size() == 1 ? values.front() : values.at(leg);
+        }
+    }
+
     FootPlacementConstraint::FootPlacementConstraint(const SwitchedModelReferenceManager& referenceManager,
                                                      const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
                                                      size_t contactPointIndex,
@@ -36,20 +48,20 @@ namespace ocs2::legged_robot
     {
         const bool active = dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_).getFootPlacementFlags(time)[
             contactPointIndex_];
-        if (contactPointIndex_ == 0)
+        static std::array<bool, 4> initialized{};
+        static std::array<bool, 4> lastActive{};
+        static std::array<scalar_t, 4> lastLogTime = {-1.0, -1.0, -1.0, -1.0};
+        if (contactPointIndex_ < initialized.size() &&
+            (!initialized[contactPointIndex_] || active != lastActive[contactPointIndex_] ||
+                time - lastLogTime[contactPointIndex_] > 0.25))
         {
-            static bool initialized = false;
-            static bool lastActive = false;
-            static scalar_t lastLogTime = -1.0;
-            if (!initialized || active != lastActive || time - lastLogTime > 0.25)
-            {
-                initialized = true;
-                lastActive = active;
-                lastLogTime = time;
-                std::cerr << std::fixed << std::setprecision(3)
-                    << "[FootPlacementConstraint] leg=0 time=" << time
-                    << " active=" << static_cast<int>(active) << std::endl;
-            }
+            initialized[contactPointIndex_] = true;
+            lastActive[contactPointIndex_] = active;
+            lastLogTime[contactPointIndex_] = time;
+            std::cerr << std::fixed << std::setprecision(3)
+                << "[FootPlacementConstraint] leg=" << contactPointIndex_
+                << " time=" << time
+                << " active=" << static_cast<int>(active) << std::endl;
         }
         return active;
     }
@@ -57,22 +69,25 @@ namespace ocs2::legged_robot
     vector_t FootPlacementConstraint::getValue(scalar_t /*time*/, const vector_t& state,
                                                const PreComputation& preComp) const
     {
-        if (contactPointIndex_ == 0)
+        static std::array<bool, 4> checkedPrecomputationType{};
+        if (contactPointIndex_ < checkedPrecomputationType.size() && !checkedPrecomputationType[contactPointIndex_])
         {
-            static bool checkedPrecomputationType = false;
-            if (!checkedPrecomputationType)
-            {
-                checkedPrecomputationType = true;
-                const bool isPerceptive =
-                    dynamic_cast<const PerceptiveLeggedPrecomputation*>(&preComp) != nullptr;
-                std::cerr << "[FootPlacementConstraint] preComputation cast check leg=0 "
-                    << "is PerceptiveLeggedPrecomputation="
-                    << static_cast<int>(isPerceptive) << std::endl;
-            }
+            checkedPrecomputationType[contactPointIndex_] = true;
+            const bool isPerceptive =
+                dynamic_cast<const PerceptiveLeggedPrecomputation*>(&preComp) != nullptr;
+            std::cerr << "[FootPlacementConstraint] preComputation cast check leg=" << contactPointIndex_
+                << " is PerceptiveLeggedPrecomputation="
+                << static_cast<int>(isPerceptive) << std::endl;
         }
-        const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
-            contactPointIndex_];
-        return param.a * endEffectorKinematicsPtr_->getPosition(state).front() + param.b;
+        const auto& perceptivePreComp = cast<PerceptiveLeggedPrecomputation>(preComp);
+        if (auto* pinocchioKinematics =
+            dynamic_cast<PinocchioEndEffectorKinematics*>(endEffectorKinematicsPtr_.get()))
+        {
+            pinocchioKinematics->setPinocchioInterface(perceptivePreComp.getPinocchioInterface());
+        }
+        const auto param = perceptivePreComp.getFootPlacementConParameters()[contactPointIndex_];
+        const auto positions = endEffectorKinematicsPtr_->getPosition(state);
+        return param.a * selectLegKinematics(positions, contactPointIndex_) + param.b;
     }
 
     VectorFunctionLinearApproximation FootPlacementConstraint::getLinearApproximation(
@@ -81,10 +96,16 @@ namespace ocs2::legged_robot
     {
         VectorFunctionLinearApproximation approx = VectorFunctionLinearApproximation::Zero(
             numVertices_, state.size(), 0);
-        const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
-            contactPointIndex_];
+        const auto& perceptivePreComp = cast<PerceptiveLeggedPrecomputation>(preComp);
+        if (auto* pinocchioKinematics =
+            dynamic_cast<PinocchioEndEffectorKinematics*>(endEffectorKinematicsPtr_.get()))
+        {
+            pinocchioKinematics->setPinocchioInterface(perceptivePreComp.getPinocchioInterface());
+        }
+        const auto param = perceptivePreComp.getFootPlacementConParameters()[contactPointIndex_];
 
-        const auto positionApprox = endEffectorKinematicsPtr_->getPositionLinearApproximation(state).front();
+        const auto positionApproximations = endEffectorKinematicsPtr_->getPositionLinearApproximation(state);
+        const auto positionApprox = selectLegKinematics(positionApproximations, contactPointIndex_);
         approx.f = param.a * positionApprox.f + param.b;
         approx.dfdx = param.a * positionApprox.dfdx;
         return approx;

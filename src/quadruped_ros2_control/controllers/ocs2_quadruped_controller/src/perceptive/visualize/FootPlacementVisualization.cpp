@@ -6,6 +6,7 @@
 #include <convex_plane_decomposition/ConvexRegionGrowing.h>
 #include <convex_plane_decomposition_ros/RosVisualizations.h>
 #include <ocs2_ros_interfaces/visualization/VisualizationHelpers.h>
+#include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 
 #include <array>
 #include <utility>
@@ -14,34 +15,34 @@ namespace ocs2::legged_robot
 {
     namespace
     {
-        visualization_msgs::msg::Marker getFlTargetRegionMarker(const std_msgs::msg::Header& header)
+        visualization_msgs::msg::Marker getFixedTargetRegionMarker(const std_msgs::msg::Header& header,
+                                                                    const FixedFootholdRegion& region,
+                                                                    size_t leg, Color color)
         {
             visualization_msgs::msg::Marker marker;
             marker.header = header;
-            marker.ns = "FL Target Region";
-            marker.id = 10000;
+            marker.ns = "Fixed Target Regions";
+            marker.id = 10000 + static_cast<int>(leg);
             marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
             marker.action = visualization_msgs::msg::Marker::ADD;
             marker.pose.orientation.w = 1.0;
             marker.scale.x = 0.012;
-            marker.color.r = 0.0;
-            marker.color.g = 1.0;
-            marker.color.b = 0.0;
+            marker.color = getColor(color, 1.0);
             marker.color.a = 1.0;
 
             const std::array<std::pair<double, double>, 5> corners = {
-                std::pair<double, double>{0.25, 0.10},
-                std::pair<double, double>{0.35, 0.10},
-                std::pair<double, double>{0.35, 0.18},
-                std::pair<double, double>{0.25, 0.18},
-                std::pair<double, double>{0.25, 0.10}
+                std::pair<double, double>{region.xMin, region.yMin},
+                std::pair<double, double>{region.xMax, region.yMin},
+                std::pair<double, double>{region.xMax, region.yMax},
+                std::pair<double, double>{region.xMin, region.yMax},
+                std::pair<double, double>{region.xMin, region.yMin}
             };
             for (const auto& [x, y] : corners)
             {
                 geometry_msgs::msg::Point point;
                 point.x = x;
                 point.y = y;
-                point.z = 0.015;
+                point.z = region.z + 0.015;
                 marker.points.push_back(point);
             }
             return marker;
@@ -71,7 +72,15 @@ namespace ocs2::legged_robot
             header.frame_id = "odom";
 
             visualization_msgs::msg::MarkerArray makerArray;
-            makerArray.markers.push_back(getFlTargetRegionMarker(header));
+            if (convex_region_selector_.fixedFootholdRegionsEnabled())
+            {
+                const auto& settings = convex_region_selector_.getFixedFootholdRegionSettings();
+                for (size_t leg = 0; leg < settings.regions.size(); ++leg)
+                {
+                    makerArray.markers.push_back(getFixedTargetRegionMarker(
+                        header, convex_region_selector_.getFixedFootholdRegion(leg), leg, feet_color_map_[leg]));
+                }
+            }
 
             size_t i = 0;
             for (int leg = 0; leg < num_foot_; ++leg)

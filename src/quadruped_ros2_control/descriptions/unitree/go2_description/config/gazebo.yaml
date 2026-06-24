@@ -73,6 +73,34 @@ ocs2_quadruped_controller:
     lf_target_y: 0.12
     rf_target_y: -0.12
 
+    fixed_foothold_regions:
+      enable: true
+      frame: "world"
+      FL:
+        x_min: 0.25
+        x_max: 0.35
+        y_min: 0.10
+        y_max: 0.18
+        z: 0.0
+      FR:
+        x_min: 0.25
+        x_max: 0.35
+        y_min: -0.18
+        y_max: -0.10
+        z: 0.0
+      RL:
+        x_min: -0.05
+        x_max: 0.05
+        y_min: 0.10
+        y_max: 0.18
+        z: 0.0
+      RR:
+        x_min: -0.05
+        x_max: 0.05
+        y_min: -0.18
+        y_max: -0.10
+        z: 0.0
+
     imu_name: "imu_sensor"
     base_name: "base"
 

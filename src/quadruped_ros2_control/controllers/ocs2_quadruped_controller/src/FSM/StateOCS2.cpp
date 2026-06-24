@@ -8,32 +8,23 @@
 #include <array>
 #include <angles/angles.h>
 #include <cmath>
+#include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <ocs2_core/misc/LoadData.h>
+#include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h>
 #include <ocs2_quadruped_controller/wbc/WeightedWbc.h>
+#include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 #include <ocs2_sqp/SqpMpc.h>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
 #include <sstream>
 
 namespace ocs2::legged_robot
 {
     namespace
     {
-        constexpr size_t kFlLeg = 0;
-        constexpr scalar_t kFlRegionXMin = 0.25;
-        constexpr scalar_t kFlRegionXMax = 0.35;
-        constexpr scalar_t kFlRegionYMin = 0.10;
-        constexpr scalar_t kFlRegionYMax = 0.18;
-        constexpr scalar_t kFlRegionZ = 0.0;
-
-        bool isInsideFlTargetRegion(const vector3_t& position)
-        {
-            return position.x() >= kFlRegionXMin && position.x() <= kFlRegionXMax &&
-                position.y() >= kFlRegionYMin && position.y() <= kFlRegionYMax &&
-                std::abs(position.z() - kFlRegionZ) < 0.05;
-        }
-
-        bool findNextFlTouchdown(const ModeSchedule& modeSchedule, scalar_t now,
-                                 scalar_t& swingStartTime, scalar_t& touchdownTime)
+        bool findNextTouchdown(const ModeSchedule& modeSchedule, scalar_t now, size_t leg,
+                               scalar_t& swingStartTime, scalar_t& touchdownTime)
         {
             const auto& eventTimes = modeSchedule.eventTimes;
             const auto& modeSequence = modeSchedule.modeSequence;
@@ -48,8 +39,8 @@ namespace ocs2::legged_robot
                 {
                     continue;
                 }
-                const bool wasSwing = !modeNumber2StanceLeg(modeSequence[phase - 1])[kFlLeg];
-                const bool becomesStance = modeNumber2StanceLeg(modeSequence[phase])[kFlLeg];
+                const bool wasSwing = !modeNumber2StanceLeg(modeSequence[phase - 1])[leg];
+                const bool becomesStance = modeNumber2StanceLeg(modeSequence[phase])[leg];
                 if (wasSwing && becomesStance)
                 {
                     swingStartTime = eventTimes[phase - 1];
@@ -58,6 +49,29 @@ namespace ocs2::legged_robot
                 }
             }
             return false;
+        }
+
+        void updatePinocchioFrames(PinocchioInterface& pinocchioInterface,
+                                   const CentroidalModelInfo& info,
+                                   const vector_t& state)
+        {
+            CentroidalModelPinocchioMapping mapping(info);
+            mapping.setPinocchioInterface(pinocchioInterface);
+            const vector_t q = mapping.getPinocchioJointPosition(state);
+            const auto& model = pinocchioInterface.getModel();
+            auto& data = pinocchioInterface.getData();
+            pinocchio::forwardKinematics(model, data, q);
+            pinocchio::updateFramePlacements(model, data);
+        }
+
+        const ConvexRegionSelector* getConvexRegionSelector(CtrlComponent& ctrlComponent)
+        {
+            const auto referenceManagerPtr = ctrlComponent.legged_interface_->getReferenceManagerPtr();
+            auto* perceptiveReferenceManager =
+                dynamic_cast<PerceptiveLeggedReferenceManager*>(referenceManagerPtr.get());
+            return perceptiveReferenceManager == nullptr
+                       ? nullptr
+                       : perceptiveReferenceManager->getConvexRegionSelectorPtr().get();
         }
     }
 
@@ -142,53 +156,110 @@ namespace ocs2::legged_robot
                                                             optimized_state_,
                                                             optimized_input_, planned_mode);
 
-        static scalar_t lastTouchdownLogTime = -1.0;
-        scalar_t flSwingStartTime = 0.0;
-        scalar_t flTouchdownTime = 0.0;
+        static scalar_t lastPredictedTouchdownLogTime = -1.0;
         const auto& policy = ctrl_component_->mpc_mrt_interface_->getPolicy();
-        if ((lastTouchdownLogTime < 0.0 || ctrl_component_->observation_.time - lastTouchdownLogTime > 0.25) &&
-            findNextFlTouchdown(policy.modeSchedule_, ctrl_component_->observation_.time,
-                                flSwingStartTime, flTouchdownTime) &&
+        const auto* convexRegionSelector = getConvexRegionSelector(*ctrl_component_);
+        if ((lastPredictedTouchdownLogTime < 0.0 ||
+                ctrl_component_->observation_.time - lastPredictedTouchdownLogTime > 0.25) &&
             !policy.timeTrajectory_.empty() &&
-            flTouchdownTime <= policy.timeTrajectory_.back())
+            convexRegionSelector != nullptr &&
+            convexRegionSelector->fixedFootholdRegionsEnabled())
         {
-            vector_t touchdownState;
-            vector_t touchdownInput;
-            size_t touchdownMode = 0;
-            try
+            const auto& fixedRegionSettings = convexRegionSelector->getFixedFootholdRegionSettings();
+            for (size_t leg = 0; leg < fixedRegionSettings.regions.size(); ++leg)
             {
-                ctrl_component_->mpc_mrt_interface_->evaluatePolicy(flTouchdownTime,
-                                                                    ctrl_component_->observation_.state,
-                                                                    touchdownState,
-                                                                    touchdownInput,
-                                                                    touchdownMode);
-                const vector3_t flFootPosition =
-                    ctrl_component_->ee_kinematics_->getPosition(touchdownState)[kFlLeg];
-                RCLCPP_INFO(node_->get_logger(),
-                            "[FL_TOUCHDOWN] swing_start=%.3f touchdown=%.3f mode=%zu "
-                            "predicted_foot=(%.3f, %.3f, %.3f) "
-                            "target_region=x[%.3f,%.3f],y[%.3f,%.3f],z=%.3f inside=%d",
-                            flSwingStartTime,
-                            flTouchdownTime,
-                            touchdownMode,
-                            flFootPosition.x(),
-                            flFootPosition.y(),
-                            flFootPosition.z(),
-                            kFlRegionXMin,
-                            kFlRegionXMax,
-                            kFlRegionYMin,
-                            kFlRegionYMax,
-                            kFlRegionZ,
-                            static_cast<int>(isInsideFlTargetRegion(flFootPosition)));
-                lastTouchdownLogTime = ctrl_component_->observation_.time;
+                scalar_t swingStartTime = 0.0;
+                scalar_t touchdownTime = 0.0;
+                if (!findNextTouchdown(policy.modeSchedule_, ctrl_component_->observation_.time, leg,
+                                       swingStartTime, touchdownTime) ||
+                    touchdownTime > policy.timeTrajectory_.back())
+                {
+                    continue;
+                }
+
+                vector_t touchdownState;
+                vector_t touchdownInput;
+                size_t touchdownMode = 0;
+                try
+                {
+                    ctrl_component_->mpc_mrt_interface_->evaluatePolicy(touchdownTime,
+                                                                        ctrl_component_->observation_.state,
+                                                                        touchdownState,
+                                                                        touchdownInput,
+                                                                        touchdownMode);
+                    updatePinocchioFrames(ctrl_component_->legged_interface_->getPinocchioInterface(),
+                                          ctrl_component_->legged_interface_->getCentroidalModelInfo(),
+                                          touchdownState);
+                    const vector3_t footPosition =
+                        ctrl_component_->ee_kinematics_->getPosition(touchdownState)[leg];
+                    RCLCPP_INFO(node_->get_logger(),
+                                "[PREDICTED_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
+                                "swing_start=%.3f touchdown=%.3f mode=%zu "
+                                "predicted_foot=(%.3f, %.3f, %.3f) inside_xy=%s",
+                                leg,
+                                convexRegionSelector->getFixedFootholdRegion(leg).name,
+                                convexRegionSelector->fixedFootholdRegionToString(leg).c_str(),
+                                swingStartTime,
+                                touchdownTime,
+                                touchdownMode,
+                                footPosition.x(),
+                                footPosition.y(),
+                                footPosition.z(),
+                                convexRegionSelector->isInsideFixedFootholdRegionXY(leg, footPosition)
+                                    ? "true"
+                                    : "false");
+                }
+                catch (const std::exception& e)
+                {
+                    RCLCPP_WARN(node_->get_logger(),
+                                "[PREDICTED_TOUCHDOWN] leg=%zu name=%s failed to evaluate touchdown policy "
+                                "at %.3f: %s",
+                                leg, convexRegionSelector->getFixedFootholdRegion(leg).name, touchdownTime, e.what());
+                }
             }
-            catch (const std::exception& e)
+            lastPredictedTouchdownLogTime = ctrl_component_->observation_.time;
+        }
+
+        static bool actualTouchdownContactsInitialized = false;
+        static contact_flag_t lastActualTouchdownContacts{};
+        const auto actualContacts = modeNumber2StanceLeg(ctrl_component_->observation_.mode);
+        if (!actualTouchdownContactsInitialized)
+        {
+            lastActualTouchdownContacts = actualContacts;
+            actualTouchdownContactsInitialized = true;
+        }
+        else
+        {
+            if (convexRegionSelector != nullptr && convexRegionSelector->fixedFootholdRegionsEnabled())
             {
-                RCLCPP_WARN(node_->get_logger(),
-                            "[FL_TOUCHDOWN] failed to evaluate touchdown policy at %.3f: %s",
-                            flTouchdownTime, e.what());
-                lastTouchdownLogTime = ctrl_component_->observation_.time;
+                updatePinocchioFrames(ctrl_component_->legged_interface_->getPinocchioInterface(),
+                                      ctrl_component_->legged_interface_->getCentroidalModelInfo(),
+                                      ctrl_component_->observation_.state);
+                const auto actualFootPositions = ctrl_component_->ee_kinematics_->getPosition(
+                    ctrl_component_->observation_.state);
+                const auto& fixedRegionSettings = convexRegionSelector->getFixedFootholdRegionSettings();
+                for (size_t leg = 0; leg < fixedRegionSettings.regions.size(); ++leg)
+                {
+                    if (!lastActualTouchdownContacts[leg] && actualContacts[leg])
+                    {
+                        const auto& footPosition = actualFootPositions[leg];
+                        RCLCPP_INFO(node_->get_logger(),
+                                    "[ACTUAL_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
+                                    "time=%.3f actual_foot=(%.3f, %.3f, %.3f) inside_xy=%s",
+                                    leg,
+                                    convexRegionSelector->getFixedFootholdRegion(leg).name,
+                                    convexRegionSelector->fixedFootholdRegionToString(leg).c_str(),
+                                    ctrl_component_->observation_.time,
+                                    footPosition.x(),
+                                    footPosition.y(),
+                                    footPosition.z(),
+                                    convexRegionSelector->isInsideFixedFootholdRegionXY(leg, footPosition)
+                                        ? "true"
+                                        : "false");
+                    }
+                }
             }
+            lastActualTouchdownContacts = actualContacts;
         }
 
         // Whole body control

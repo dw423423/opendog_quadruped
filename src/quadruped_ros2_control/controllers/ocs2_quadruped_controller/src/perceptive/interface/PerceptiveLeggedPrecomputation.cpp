@@ -3,7 +3,9 @@
 //
 
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h"
+#include "ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h"
 
+#include <array>
 #include <iomanip>
 #include <iostream>
 
@@ -58,18 +60,27 @@ namespace ocs2::legged_robot
                                                               head(2);
 
                 footPlacementConParameters_[i] = params;
-                if (i == 0)
+                static std::array<scalar_t, 4> lastLogTime = {-1.0, -1.0, -1.0, -1.0};
+                if (i < lastLogTime.size() && (lastLogTime[i] < 0.0 || t - lastLogTime[i] > 0.25))
                 {
-                    static scalar_t lastLogTime = -1.0;
-                    if (lastLogTime < 0.0 || t - lastLogTime > 0.25)
+                    lastLogTime[i] = t;
+                    std::cerr << std::fixed << std::setprecision(3)
+                        << "[PerceptivePrecomputation] leg=" << i
+                        << " fixed_enabled="
+                        << static_cast<int>(convexRegionSelectorPtr_->fixedFootholdRegionsEnabled());
+                    if (convexRegionSelectorPtr_->fixedFootholdRegionsEnabled())
                     {
-                        lastLogTime = t;
-                        std::cerr << std::fixed << std::setprecision(3)
-                            << "[PerceptivePrecomputation] leg=0 time=" << t
-                            << "\nparam.a=\n" << params.a
-                            << "\nparam.b=\n" << params.b.transpose()
-                            << std::endl;
+                        std::cerr << " selected_region=" << convexRegionSelectorPtr_->fixedFootholdRegionToString(i);
                     }
+                    else
+                    {
+                        std::cerr << " selected_region=perceptive";
+                    }
+                    std::cerr
+                        << " time=" << t
+                        << "\nparam.a=\n" << params.a
+                        << "\nparam.b=\n" << params.b.transpose()
+                        << std::endl;
                 }
             }
         }

@@ -12,6 +12,7 @@
 #include <ocs2_centroidal_model/CentroidalModelInfo.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_legged_robot/common/Types.h>
+#include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
 
 namespace ocs2::legged_robot
@@ -21,7 +22,9 @@ namespace ocs2::legged_robot
     public:
         ConvexRegionSelector(CentroidalModelInfo info,
                              std::shared_ptr<convex_plane_decomposition::PlanarTerrain> PlanarTerrainPtr,
-                             const EndEffectorKinematics<scalar_t>& endEffectorKinematics, size_t numVertices);
+                             const EndEffectorKinematics<scalar_t>& endEffectorKinematics, size_t numVertices,
+                             FixedFootholdRegionSettings fixedFootholdRegionSettings =
+                             defaultFixedFootholdRegionSettings());
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                     TargetTrajectories& targetTrajectories);
@@ -42,6 +45,28 @@ namespace ocs2::legged_robot
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> getPlanarTerrainPtr() { return planarTerrainPtr_; }
 
         feet_array_t<scalar_t> getInitStandFinalTimes() { return initStandFinalTime_; }
+
+        const FixedFootholdRegionSettings& getFixedFootholdRegionSettings() const
+        {
+            return fixedFootholdRegionSettings_;
+        }
+
+        bool fixedFootholdRegionsEnabled() const { return fixedFootholdRegionSettings_.enable; }
+
+        const FixedFootholdRegion& getFixedFootholdRegion(size_t leg) const
+        {
+            return legged_robot::getFixedFootholdRegion(fixedFootholdRegionSettings_, leg);
+        }
+
+        bool isInsideFixedFootholdRegionXY(size_t leg, const vector3_t& position) const
+        {
+            return legged_robot::isInsideFixedFootholdRegionXY(fixedFootholdRegionSettings_, leg, position);
+        }
+
+        std::string fixedFootholdRegionToString(size_t leg) const
+        {
+            return legged_robot::fixedFootholdRegionToString(fixedFootholdRegionSettings_, leg);
+        }
 
         feet_array_t<std::vector<bool>> extractContactFlags(const std::vector<size_t>& phaseIDsStock) const;
 
@@ -67,5 +92,6 @@ namespace ocs2::legged_robot
         convex_plane_decomposition::PlanarTerrain planarTerrain_;
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
+        FixedFootholdRegionSettings fixedFootholdRegionSettings_;
     };
 } // namespace ocs2::legged_robot

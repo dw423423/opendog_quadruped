@@ -43,6 +43,15 @@ namespace ocs2::legged_robot
         }
     }
 
+    PerceptiveLeggedInterface::PerceptiveLeggedInterface(
+        const std::string& taskFile, const std::string& urdfFile,
+        const std::string& referenceFile, FixedFootholdRegionSettings fixedFootholdRegionSettings,
+        bool useHardFrictionConeConstraint)
+        : LeggedInterface(taskFile, urdfFile, referenceFile, useHardFrictionConeConstraint),
+          fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings))
+    {
+    }
+
     void PerceptiveLeggedInterface::setupOptimalControlProblem(const std::string& taskFile, const std::string& urdfFile,
                                                                const std::string& referenceFile, bool verbose)
     {
@@ -163,7 +172,7 @@ namespace ocs2::legged_robot
             {model_settings_.contactNames3DoF}, "ALL_FOOT");
         auto convexRegionSelector =
             std::make_unique<ConvexRegionSelector>(centroidal_model_info_, planarTerrainPtr_, *eeKinematicsPtr,
-                                                   numVertices_);
+                                                   numVertices_, fixedFootholdRegionSettings_);
 
         scalar_t comHeight = 0;
         loadData::loadCppDataType(referenceFile, "comHeight", comHeight);

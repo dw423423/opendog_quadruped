@@ -2,9 +2,21 @@
 // Created by biao on 3/21/25.
 //
 #include "ocs2_quadruped_controller/perceptive/constraint/FootCollisionConstraint.h"
+#include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h"
+
+#include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        template <typename VectorLike>
+        const auto& selectLegKinematics(const VectorLike& values, size_t leg)
+        {
+            return values.size() == 1 ? values.front() : values.at(leg);
+        }
+    }
+
     FootCollisionConstraint::FootCollisionConstraint(const SwitchedModelReferenceManager& referenceManager,
                                                      const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
                                                      std::shared_ptr<grid_map::SignedDistanceField> sdfPtr,
@@ -38,10 +50,18 @@ namespace ocs2::legged_robot
     }
 
     vector_t FootCollisionConstraint::getValue(scalar_t /*time*/, const vector_t& state,
-                                               const PreComputation& /*preComp*/) const
+                                               const PreComputation& preComp) const
     {
+        if (auto* pinocchioKinematics =
+            dynamic_cast<PinocchioEndEffectorKinematics*>(endEffectorKinematicsPtr_.get()))
+        {
+            pinocchioKinematics->setPinocchioInterface(
+                cast<PerceptiveLeggedPrecomputation>(preComp).getPinocchioInterface());
+        }
         vector_t value(1);
-        value(0) = sdfPtr_->getDistanceAt(grid_map::Position3(endEffectorKinematicsPtr_->getPosition(state).front())) -
+        const auto positions = endEffectorKinematicsPtr_->getPosition(state);
+        value(0) = sdfPtr_->getDistanceAt(
+                grid_map::Position3(selectLegKinematics(positions, contactPointIndex_))) -
             clearance_;
         return value;
     }
@@ -52,9 +72,12 @@ namespace ocs2::legged_robot
     {
         VectorFunctionLinearApproximation approx = VectorFunctionLinearApproximation::Zero(1, state.size(), 0);
         approx.f = getValue(time, state, preComp);
-        approx.dfdx = sdfPtr_->getDistanceGradientAt(grid_map::Position3(endEffectorKinematicsPtr_->getPosition(state).front())).
-                               transpose() *
-            endEffectorKinematicsPtr_->getPositionLinearApproximation(state).front().dfdx;
+        const auto positions = endEffectorKinematicsPtr_->getPosition(state);
+        const auto positionApproximations = endEffectorKinematicsPtr_->getPositionLinearApproximation(state);
+        approx.dfdx = sdfPtr_->getDistanceGradientAt(
+                           grid_map::Position3(selectLegKinematics(positions, contactPointIndex_))).
+                       transpose() *
+            selectLegKinematics(positionApproximations, contactPointIndex_).dfdx;
         return approx;
     }
 } // namespace legged
