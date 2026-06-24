@@ -314,6 +314,21 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /legged_robot/currentState
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Foot Placement
+      Namespaces:
+        Convex Regions: true
+        FL Target Region: true
+        Nominal Footholds: true
+        Projections: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /foot_placement
+      Value: true
     - Class: rviz_common/Group
       Displays:
         - Class: rviz_common/Group

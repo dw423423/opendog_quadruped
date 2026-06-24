@@ -112,8 +112,14 @@ namespace ocs2::legged_robot
         visualizer_->update(observation_);
         if (enable_perceptive_)
         {
-            footPlacementVisualizationPtr_->update(observation_);
-            sphereVisualizationPtr_->update(observation_);
+            if (footPlacementVisualizationPtr_ != nullptr)
+            {
+                footPlacementVisualizationPtr_->update(observation_);
+            }
+            if (sphereVisualizationPtr_ != nullptr)
+            {
+                sphereVisualizationPtr_->update(observation_);
+            }
         }
 
         // Compute target trajectory
@@ -150,10 +156,14 @@ namespace ocs2::legged_robot
         if (enable_perceptive_)
         {
             legged_interface_ = std::make_unique<PerceptiveLeggedInterface>(task_file_, urdf_file_, reference_file_);
+            RCLCPP_INFO(node_->get_logger(),
+                        "[CtrlComponent] enable_perceptive=true, created PerceptiveLeggedInterface");
         }
         else
         {
             legged_interface_ = std::make_unique<LeggedInterface>(task_file_, urdf_file_, reference_file_);
+            RCLCPP_INFO(node_->get_logger(),
+                        "[CtrlComponent] enable_perceptive=false, created LeggedInterface");
         }
 
         legged_interface_->setupJointNames(joint_names_, feet_names_);
@@ -166,9 +176,19 @@ namespace ocs2::legged_robot
                 getConvexRegionSelectorPtr(),
                 legged_interface_->getCentroidalModelInfo().numThreeDofContacts, node_);
 
-            sphereVisualizationPtr_ = std::make_unique<SphereVisualization>(
-                legged_interface_->getPinocchioInterface(), legged_interface_->getCentroidalModelInfo(),
-                *dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getPinocchioSphereInterfacePtr(), node_);
+            const auto sphereInterfacePtr =
+                dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getPinocchioSphereInterfacePtr();
+            if (sphereInterfacePtr != nullptr)
+            {
+                sphereVisualizationPtr_ = std::make_unique<SphereVisualization>(
+                    legged_interface_->getPinocchioInterface(), legged_interface_->getCentroidalModelInfo(),
+                    *sphereInterfacePtr, node_);
+            }
+            else
+            {
+                RCLCPP_WARN(node_->get_logger(),
+                            "[CtrlComponent] PinocchioSphereInterface unavailable, skipping sphere visualization");
+            }
         }
     }
 

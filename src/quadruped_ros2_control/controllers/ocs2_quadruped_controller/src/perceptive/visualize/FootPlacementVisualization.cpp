@@ -7,8 +7,47 @@
 #include <convex_plane_decomposition_ros/RosVisualizations.h>
 #include <ocs2_ros_interfaces/visualization/VisualizationHelpers.h>
 
+#include <array>
+#include <utility>
+
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        visualization_msgs::msg::Marker getFlTargetRegionMarker(const std_msgs::msg::Header& header)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header = header;
+            marker.ns = "FL Target Region";
+            marker.id = 10000;
+            marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+            marker.scale.x = 0.012;
+            marker.color.r = 0.0;
+            marker.color.g = 1.0;
+            marker.color.b = 0.0;
+            marker.color.a = 1.0;
+
+            const std::array<std::pair<double, double>, 5> corners = {
+                std::pair<double, double>{0.25, 0.10},
+                std::pair<double, double>{0.35, 0.10},
+                std::pair<double, double>{0.35, 0.18},
+                std::pair<double, double>{0.25, 0.18},
+                std::pair<double, double>{0.25, 0.10}
+            };
+            for (const auto& [x, y] : corners)
+            {
+                geometry_msgs::msg::Point point;
+                point.x = x;
+                point.y = y;
+                point.z = 0.015;
+                marker.points.push_back(point);
+            }
+            return marker;
+        }
+    }
+
     FootPlacementVisualization::FootPlacementVisualization(const ConvexRegionSelector& convexRegionSelector,
                                                            size_t numFoot,
                                                            const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
@@ -18,7 +57,7 @@ namespace ocs2::legged_robot
           last_time_(std::numeric_limits<scalar_t>::lowest()),
           min_publish_time_difference_(1.0 / maxUpdateFrequency)
     {
-        marker_publisher_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("foot_placement", 1);
+        marker_publisher_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("/foot_placement", 1);
     }
 
     void FootPlacementVisualization::update(const SystemObservation& observation)
@@ -32,6 +71,7 @@ namespace ocs2::legged_robot
             header.frame_id = "odom";
 
             visualization_msgs::msg::MarkerArray makerArray;
+            makerArray.markers.push_back(getFlTargetRegionMarker(header));
 
             size_t i = 0;
             for (int leg = 0; leg < num_foot_; ++leg)

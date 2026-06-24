@@ -44,15 +44,16 @@ namespace ocs2::legged_robot
 
             const auto& map = convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
             vector_t pos = centroidal_model::getBasePose(state, info_).head(3);
+            const grid_map::Position basePosition(pos.x(), pos.y());
 
             // Base Orientation
             scalar_t step = 0.3;
             grid_map::Vector3 normalVector;
-            normalVector(0) = (map.atPosition("smooth_planar", pos + grid_map::Position(-step, 0)) -
-                    map.atPosition("smooth_planar", pos + grid_map::Position(step, 0))) /
+            normalVector(0) = (map.atPosition("smooth_planar", basePosition + grid_map::Position(-step, 0)) -
+                    map.atPosition("smooth_planar", basePosition + grid_map::Position(step, 0))) /
                 (2 * step);
-            normalVector(1) = (map.atPosition("smooth_planar", pos + grid_map::Position(0, -step)) -
-                    map.atPosition("smooth_planar", pos + grid_map::Position(0, step))) /
+            normalVector(1) = (map.atPosition("smooth_planar", basePosition + grid_map::Position(0, -step)) -
+                    map.atPosition("smooth_planar", basePosition + grid_map::Position(0, step))) /
                 (2 * step);
             normalVector(2) = 1;
             normalVector.normalize();
@@ -66,7 +67,8 @@ namespace ocs2::legged_robot
 
             // Base Z Position
             centroidal_model::getBasePose(state, info_)(2) =
-                map.atPosition("smooth_planar", pos) + comHeight_ / cos(centroidal_model::getBasePose(state, info_)(4));
+                map.atPosition("smooth_planar", basePosition) +
+                comHeight_ / cos(centroidal_model::getBasePose(state, info_)(4));
 
             newTargetTrajectories.timeTrajectory.push_back(time);
             newTargetTrajectories.stateTrajectory.push_back(state);

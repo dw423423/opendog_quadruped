@@ -28,6 +28,7 @@ ocs2_quadruped_controller:
   ros__parameters:
     update_rate: 200  # Hz
     robot_pkg: "go2_description"
+    enable_perceptive: true
     default_kp: 20.0
     default_kd: 5.5
     feet_force_threshold: 4.0

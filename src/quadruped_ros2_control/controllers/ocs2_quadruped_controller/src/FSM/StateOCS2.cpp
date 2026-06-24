@@ -16,6 +16,51 @@
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        constexpr size_t kFlLeg = 0;
+        constexpr scalar_t kFlRegionXMin = 0.25;
+        constexpr scalar_t kFlRegionXMax = 0.35;
+        constexpr scalar_t kFlRegionYMin = 0.10;
+        constexpr scalar_t kFlRegionYMax = 0.18;
+        constexpr scalar_t kFlRegionZ = 0.0;
+
+        bool isInsideFlTargetRegion(const vector3_t& position)
+        {
+            return position.x() >= kFlRegionXMin && position.x() <= kFlRegionXMax &&
+                position.y() >= kFlRegionYMin && position.y() <= kFlRegionYMax &&
+                std::abs(position.z() - kFlRegionZ) < 0.05;
+        }
+
+        bool findNextFlTouchdown(const ModeSchedule& modeSchedule, scalar_t now,
+                                 scalar_t& swingStartTime, scalar_t& touchdownTime)
+        {
+            const auto& eventTimes = modeSchedule.eventTimes;
+            const auto& modeSequence = modeSchedule.modeSequence;
+            if (eventTimes.size() < 2 || modeSequence.size() < 2)
+            {
+                return false;
+            }
+            for (size_t phase = 1; phase < modeSequence.size(); ++phase)
+            {
+                const scalar_t eventTime = eventTimes[phase];
+                if (eventTime <= now)
+                {
+                    continue;
+                }
+                const bool wasSwing = !modeNumber2StanceLeg(modeSequence[phase - 1])[kFlLeg];
+                const bool becomesStance = modeNumber2StanceLeg(modeSequence[phase])[kFlLeg];
+                if (wasSwing && becomesStance)
+                {
+                    swingStartTime = eventTimes[phase - 1];
+                    touchdownTime = eventTime;
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     StateOCS2::StateOCS2(CtrlInterfaces& ctrl_interfaces,
                          const std::shared_ptr<CtrlComponent>& ctrl_component)
         : FSMState(FSMStateName::OCS2, "OCS2 State", ctrl_interfaces),
@@ -96,6 +141,55 @@ namespace ocs2::legged_robot
                                                             ctrl_component_->observation_.state,
                                                             optimized_state_,
                                                             optimized_input_, planned_mode);
+
+        static scalar_t lastTouchdownLogTime = -1.0;
+        scalar_t flSwingStartTime = 0.0;
+        scalar_t flTouchdownTime = 0.0;
+        const auto& policy = ctrl_component_->mpc_mrt_interface_->getPolicy();
+        if ((lastTouchdownLogTime < 0.0 || ctrl_component_->observation_.time - lastTouchdownLogTime > 0.25) &&
+            findNextFlTouchdown(policy.modeSchedule_, ctrl_component_->observation_.time,
+                                flSwingStartTime, flTouchdownTime) &&
+            !policy.timeTrajectory_.empty() &&
+            flTouchdownTime <= policy.timeTrajectory_.back())
+        {
+            vector_t touchdownState;
+            vector_t touchdownInput;
+            size_t touchdownMode = 0;
+            try
+            {
+                ctrl_component_->mpc_mrt_interface_->evaluatePolicy(flTouchdownTime,
+                                                                    ctrl_component_->observation_.state,
+                                                                    touchdownState,
+                                                                    touchdownInput,
+                                                                    touchdownMode);
+                const vector3_t flFootPosition =
+                    ctrl_component_->ee_kinematics_->getPosition(touchdownState)[kFlLeg];
+                RCLCPP_INFO(node_->get_logger(),
+                            "[FL_TOUCHDOWN] swing_start=%.3f touchdown=%.3f mode=%zu "
+                            "predicted_foot=(%.3f, %.3f, %.3f) "
+                            "target_region=x[%.3f,%.3f],y[%.3f,%.3f],z=%.3f inside=%d",
+                            flSwingStartTime,
+                            flTouchdownTime,
+                            touchdownMode,
+                            flFootPosition.x(),
+                            flFootPosition.y(),
+                            flFootPosition.z(),
+                            kFlRegionXMin,
+                            kFlRegionXMax,
+                            kFlRegionYMin,
+                            kFlRegionYMax,
+                            kFlRegionZ,
+                            static_cast<int>(isInsideFlTargetRegion(flFootPosition)));
+                lastTouchdownLogTime = ctrl_component_->observation_.time;
+            }
+            catch (const std::exception& e)
+            {
+                RCLCPP_WARN(node_->get_logger(),
+                            "[FL_TOUCHDOWN] failed to evaluate touchdown policy at %.3f: %s",
+                            flTouchdownTime, e.what());
+                lastTouchdownLogTime = ctrl_component_->observation_.time;
+            }
+        }
 
         // Whole body control
         ctrl_component_->observation_.input = optimized_input_;

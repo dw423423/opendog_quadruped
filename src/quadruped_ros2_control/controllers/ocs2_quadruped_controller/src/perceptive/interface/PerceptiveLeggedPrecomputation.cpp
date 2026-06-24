@@ -4,6 +4,9 @@
 
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h"
 
+#include <iomanip>
+#include <iostream>
+
 namespace ocs2::legged_robot
 {
     PerceptiveLeggedPrecomputation::PerceptiveLeggedPrecomputation(PinocchioInterface pinocchioInterface,
@@ -55,6 +58,19 @@ namespace ocs2::legged_robot
                                                               head(2);
 
                 footPlacementConParameters_[i] = params;
+                if (i == 0)
+                {
+                    static scalar_t lastLogTime = -1.0;
+                    if (lastLogTime < 0.0 || t - lastLogTime > 0.25)
+                    {
+                        lastLogTime = t;
+                        std::cerr << std::fixed << std::setprecision(3)
+                            << "[PerceptivePrecomputation] leg=0 time=" << t
+                            << "\nparam.a=\n" << params.a
+                            << "\nparam.b=\n" << params.b.transpose()
+                            << std::endl;
+                    }
+                }
             }
         }
     }

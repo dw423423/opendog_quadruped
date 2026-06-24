@@ -6,6 +6,9 @@
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h"
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
+#include <iomanip>
+#include <iostream>
+
 namespace ocs2::legged_robot
 {
     FootPlacementConstraint::FootPlacementConstraint(const SwitchedModelReferenceManager& referenceManager,
@@ -31,13 +34,42 @@ namespace ocs2::legged_robot
 
     bool FootPlacementConstraint::isActive(scalar_t time) const
     {
-        return dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_).getFootPlacementFlags(time)[
+        const bool active = dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_).getFootPlacementFlags(time)[
             contactPointIndex_];
+        if (contactPointIndex_ == 0)
+        {
+            static bool initialized = false;
+            static bool lastActive = false;
+            static scalar_t lastLogTime = -1.0;
+            if (!initialized || active != lastActive || time - lastLogTime > 0.25)
+            {
+                initialized = true;
+                lastActive = active;
+                lastLogTime = time;
+                std::cerr << std::fixed << std::setprecision(3)
+                    << "[FootPlacementConstraint] leg=0 time=" << time
+                    << " active=" << static_cast<int>(active) << std::endl;
+            }
+        }
+        return active;
     }
 
     vector_t FootPlacementConstraint::getValue(scalar_t /*time*/, const vector_t& state,
                                                const PreComputation& preComp) const
     {
+        if (contactPointIndex_ == 0)
+        {
+            static bool checkedPrecomputationType = false;
+            if (!checkedPrecomputationType)
+            {
+                checkedPrecomputationType = true;
+                const bool isPerceptive =
+                    dynamic_cast<const PerceptiveLeggedPrecomputation*>(&preComp) != nullptr;
+                std::cerr << "[FootPlacementConstraint] preComputation cast check leg=0 "
+                    << "is PerceptiveLeggedPrecomputation="
+                    << static_cast<int>(isPerceptive) << std::endl;
+            }
+        }
         const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
             contactPointIndex_];
         return param.a * endEffectorKinematicsPtr_->getPosition(state).front() + param.b;

@@ -15,10 +15,34 @@
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematicsCppAd.h>
 
+#include <exception>
 #include <memory>
+#include <string>
+#include <typeinfo>
+#include <vector>
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        std::vector<std::string> getCalfCollisionLinks(const std::vector<std::string>& footNames)
+        {
+            std::vector<std::string> collisionLinks;
+            collisionLinks.reserve(footNames.size());
+            for (auto footName : footNames)
+            {
+                const std::string suffix = "_foot";
+                if (footName.size() >= suffix.size() &&
+                    footName.compare(footName.size() - suffix.size(), suffix.size(), suffix) == 0)
+                {
+                    footName.replace(footName.size() - suffix.size(), suffix.size(), "_calf");
+                }
+                collisionLinks.push_back(std::move(footName));
+            }
+            return collisionLinks;
+        }
+    }
+
     void PerceptiveLeggedInterface::setupOptimalControlProblem(const std::string& taskFile, const std::string& urdfFile,
                                                                const std::string& referenceFile, bool verbose)
     {
@@ -54,6 +78,13 @@ namespace ocs2::legged_robot
         signedDistanceFieldPtr_->calculateSignedDistanceField(planarTerrainPtr_->gridMap, layer, 0.1);
 
         LeggedInterface::setupOptimalControlProblem(taskFile, urdfFile, referenceFile, verbose);
+        setupPreComputation(taskFile, urdfFile, referenceFile, verbose);
+        const bool usesPerceptivePrecomputation =
+            dynamic_cast<PerceptiveLeggedPrecomputation*>(problem_ptr_->preComputationPtr.get()) != nullptr;
+        std::cerr << "[PerceptiveLeggedInterface] preComputation type: "
+            << typeid(*problem_ptr_->preComputationPtr).name()
+            << ", is PerceptiveLeggedPrecomputation="
+            << static_cast<int>(usesPerceptivePrecomputation) << std::endl;
 
         for (size_t i = 0; i < centroidal_model_info_.numThreeDofContacts; i++)
         {
@@ -85,18 +116,36 @@ namespace ocs2::legged_robot
         scalar_t thighExcess = 0.025;
         scalar_t calfExcess = 0.02;
 
-        std::vector<std::string> collisionLinks = {"LF_calf", "RF_calf", "LH_calf", "RH_calf"};
-        const std::vector<scalar_t>& maxExcesses = {calfExcess, calfExcess, calfExcess, calfExcess};
+        std::vector<std::string> collisionLinks = getCalfCollisionLinks(modelSettings().contactNames3DoF);
+        std::vector<scalar_t> maxExcesses(collisionLinks.size(), calfExcess);
+        std::cerr << "[PerceptiveLeggedInterface] collision links:";
+        for (const auto& link : collisionLinks)
+        {
+            std::cerr << " " << link;
+        }
+        std::cerr << std::endl;
 
-        pinocchioSphereInterfacePtr_ = std::make_shared<PinocchioSphereInterface>(
-            *pinocchio_interface_ptr_, collisionLinks, maxExcesses, 0.6);
+        try
+        {
+            pinocchioSphereInterfacePtr_ = std::make_shared<PinocchioSphereInterface>(
+                *pinocchio_interface_ptr_, collisionLinks, maxExcesses, 0.6);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[PerceptiveLeggedInterface] failed to create PinocchioSphereInterface: "
+                << e.what() << ". Sphere visualization/SDF collision spheres will be disabled." << std::endl;
+            pinocchioSphereInterfacePtr_.reset();
+        }
 
         CentroidalModelPinocchioMapping pinocchioMapping(centroidal_model_info_);
-        auto sphereKinematicsPtr = std::make_unique<PinocchioSphereKinematics>(
-            *pinocchioSphereInterfacePtr_, pinocchioMapping);
+        if (pinocchioSphereInterfacePtr_ != nullptr)
+        {
+            auto sphereKinematicsPtr = std::make_unique<PinocchioSphereKinematics>(
+                *pinocchioSphereInterfacePtr_, pinocchioMapping);
 
-        std::unique_ptr<SphereSdfConstraint> sphereSdfConstraint(
-            new SphereSdfConstraint(*sphereKinematicsPtr, signedDistanceFieldPtr_));
+            std::unique_ptr<SphereSdfConstraint> sphereSdfConstraint(
+                new SphereSdfConstraint(*sphereKinematicsPtr, signedDistanceFieldPtr_));
+        }
 
         //  std::unique_ptr<PenaltyBase> penalty(new RelaxedBarrierPenalty(RelaxedBarrierPenalty::Config(1e-3, 1e-3)));
         //  problem_ptr_->stateSoftConstraintPtr->add(

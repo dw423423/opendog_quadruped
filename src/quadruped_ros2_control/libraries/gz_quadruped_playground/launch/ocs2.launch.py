@@ -25,7 +25,12 @@ def generate_launch_description():
     ocs2_controller = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["ocs2_quadruped_controller", "--controller-manager", "/controller_manager"]
+        arguments=[
+            "ocs2_quadruped_controller",
+            "--controller-manager", "/controller_manager",
+            "--controller-manager-timeout", "120",
+            "--service-call-timeout", "120",
+        ],
     )
 
     elevation_mapping = Node (
