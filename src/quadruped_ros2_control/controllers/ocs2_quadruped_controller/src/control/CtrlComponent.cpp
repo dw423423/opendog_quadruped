@@ -352,12 +352,15 @@ namespace ocs2::legged_robot
             RCLCPP_INFO(node_->get_logger(),
                         "[FootholdSequence] enable=%s frame=%s sets=%zu active_set=%zu "
                         "manual_advance=%s advance_key=%s pause_gait_on_set_completed=%s "
-                        "resume_gait_after_advance=%s auto_stance_on_final=%s stable_hold_time=%.3f",
+                        "resume_gait_after_advance=%s auto_stance_on_final=%s "
+                        "require_z_for_reached=%s z_tolerance=%.3f stable_hold_time=%.3f",
                         boolString(config.enable), config.frame.c_str(), config.sets.size(), config.activeSet,
                         boolString(config.manualAdvance), config.advanceKey.c_str(),
                         boolString(config.pauseGaitOnSetCompleted),
                         config.resumeGaitAfterAdvance.c_str(),
-                        boolString(config.autoStanceOnFinal), config.stableHoldTime);
+                        boolString(config.autoStanceOnFinal),
+                        boolString(config.requireZForReached), config.zTolerance,
+                        config.stableHoldTime);
             for (size_t setIndex = 0; setIndex < config.sets.size(); ++setIndex)
             {
                 const auto& set = config.sets[setIndex];
@@ -431,6 +434,10 @@ namespace ocs2::legged_robot
                                config.resumeGaitAfterAdvance);
             config.autoStanceOnFinal = getBoolParam("fixed_foothold_sequence.auto_stance_on_final",
                                                     config.autoStanceOnFinal);
+            config.requireZForReached = getBoolParam("fixed_foothold_sequence.require_z_for_reached",
+                                                     config.requireZForReached);
+            config.zTolerance = getDoubleParam("fixed_foothold_sequence.z_tolerance",
+                                               config.zTolerance);
             config.stableHoldTime = getDoubleParam("fixed_foothold_sequence.stable_hold_time",
                                                    config.stableHoldTime);
             config.activeSet = getSizeParam("fixed_foothold_sequence.active_set", config.activeSet);
@@ -556,6 +563,14 @@ namespace ocs2::legged_robot
             if (sequence["auto_stance_on_final"])
             {
                 config.autoStanceOnFinal = sequence["auto_stance_on_final"].as<bool>();
+            }
+            if (sequence["require_z_for_reached"])
+            {
+                config.requireZForReached = sequence["require_z_for_reached"].as<bool>();
+            }
+            if (sequence["z_tolerance"])
+            {
+                config.zTolerance = sequence["z_tolerance"].as<double>();
             }
             if (sequence["stable_hold_time"])
             {

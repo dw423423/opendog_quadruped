@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <sstream>
 #include <string>
@@ -47,9 +48,19 @@ namespace ocs2::legged_robot
         bool pauseGaitOnSetCompleted = true;
         std::string resumeGaitAfterAdvance = "static_walk";
         bool autoStanceOnFinal = true;
+        bool requireZForReached = false;
+        scalar_t zTolerance = 0.04;
         scalar_t stableHoldTime = 0.3;
         size_t activeSet = 0;
         std::vector<FixedFootholdRegionSet> sets;
+    };
+
+    struct FixedFootholdRegionCheck
+    {
+        bool insideXY = false;
+        scalar_t zError = 0.0;
+        bool insideZ = false;
+        bool insideXYZ = false;
     };
 
     enum class FootholdSequenceState
@@ -97,6 +108,19 @@ namespace ocs2::legged_robot
         const auto& region = getFixedFootholdRegion(settings, leg);
         return position.x() >= region.xMin && position.x() <= region.xMax &&
             position.y() >= region.yMin && position.y() <= region.yMax;
+    }
+
+    inline FixedFootholdRegionCheck checkFixedFootholdRegion(const FixedFootholdRegion& region,
+                                                             const vector3_t& position,
+                                                             scalar_t zTolerance)
+    {
+        FixedFootholdRegionCheck check;
+        check.insideXY = position.x() >= region.xMin && position.x() <= region.xMax &&
+            position.y() >= region.yMin && position.y() <= region.yMax;
+        check.zError = position.z() - region.z;
+        check.insideZ = std::abs(check.zError) <= zTolerance;
+        check.insideXYZ = check.insideXY && check.insideZ;
+        return check;
     }
 
     inline std::string fixedFootholdRegionToString(const FixedFootholdRegion& region)
@@ -166,15 +190,16 @@ namespace ocs2::legged_robot
             stanceRequestSentForCurrentSet_ = false;
         }
 
-        bool markLegTouchdown(size_t leg, const vector3_t& actualFootPosition)
+        FixedFootholdRegionCheck markLegTouchdown(size_t leg, const vector3_t& actualFootPosition)
         {
-            const bool inside = isInsideActiveRegionXY(leg, actualFootPosition);
-            if (inside)
+            const auto check = checkActiveRegion(leg, actualFootPosition);
+            const bool reached = config_.requireZForReached ? check.insideXYZ : check.insideXY;
+            if (reached)
             {
                 reached_.at(leg) = true;
                 currentSetCompleted_ = reached_[0] && reached_[1] && reached_[2] && reached_[3];
             }
-            return inside;
+            return check;
         }
 
         bool isLegReached(size_t leg) const { return reached_.at(leg); }
@@ -268,6 +293,11 @@ namespace ocs2::legged_robot
             const auto& region = getActiveRegion(leg);
             return position.x() >= region.xMin && position.x() <= region.xMax &&
                 position.y() >= region.yMin && position.y() <= region.yMax;
+        }
+
+        FixedFootholdRegionCheck checkActiveRegion(size_t leg, const vector3_t& position) const
+        {
+            return checkFixedFootholdRegion(getActiveRegion(leg), position, config_.zTolerance);
         }
 
         std::string activeRegionToString(size_t leg) const

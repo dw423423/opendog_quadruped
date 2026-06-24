@@ -135,5 +135,79 @@ gz service -s /world/empty/create \
       </link>
     </model>
 
+    <model name="fixed_step_01">
+      <static>true</static>
+      <pose>0.575 0.0 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.35 0.80 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>3.0</mu>
+                <mu2>3.0</mu2>
+                <fdir1>1 0 0</fdir1>
+                <slip1>0.0</slip1>
+                <slip2>0.0</slip2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.35 0.80 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.55 0.55 0.55 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="fixed_step_02">
+      <static>true</static>
+      <pose>0.925 0.0 0.150 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.35 0.80 0.30</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>3.0</mu>
+                <mu2>3.0</mu2>
+                <fdir1>1 0 0</fdir1>
+                <slip1>0.0</slip1>
+                <slip2>0.0</slip2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.35 0.80 0.30</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.55 0.55 0.55 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
   </world>
 </sdf>

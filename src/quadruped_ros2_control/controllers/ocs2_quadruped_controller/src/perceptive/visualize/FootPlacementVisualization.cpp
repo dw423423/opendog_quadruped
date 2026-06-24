@@ -42,7 +42,7 @@ namespace ocs2::legged_robot
                 geometry_msgs::msg::Point point;
                 point.x = x;
                 point.y = y;
-                point.z = region.z + 0.015;
+                point.z = region.z;
                 marker.points.push_back(point);
             }
             return marker;

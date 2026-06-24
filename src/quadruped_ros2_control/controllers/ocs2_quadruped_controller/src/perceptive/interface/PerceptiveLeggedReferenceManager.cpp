@@ -3,12 +3,29 @@
 //
 
 #include <utility>
+#include <algorithm>
+#include <iomanip>
+#include <iostream>
 #include <ocs2_core/misc/Lookup.h>
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        bool shouldLogSwingHeight(scalar_t initTime)
+        {
+            static scalar_t lastLogTime = -1.0;
+            if (lastLogTime >= 0.0 && initTime - lastLogTime < 0.5)
+            {
+                return false;
+            }
+            lastLogTime = initTime;
+            return true;
+        }
+    }
+
     PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(CentroidalModelInfo info,
                                                                        std::shared_ptr<GaitSchedule> gaitSchedulePtr,
                                                                        std::shared_ptr<SwingTrajectoryPlanner>
@@ -102,6 +119,59 @@ namespace ocs2::legged_robot
             touchDownHeightSequence[leg] = touchDownHeights;
         }
         swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+
+        if (convexRegionSelectorPtr_->fixedFootholdSequenceEnabled() && shouldLogSwingHeight(initTime))
+        {
+            const auto& sequenceManager = convexRegionSelectorPtr_->getFixedFootholdSequenceManager();
+            const auto& swingConfig = swingTrajectoryPtr_->getConfig();
+            for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
+            {
+                const auto& contactFlags = contactFlagStocks[leg];
+                const auto& liftOffHeights = liftOffHeightSequence[leg];
+                const auto& touchDownHeights = touchDownHeightSequence[leg];
+                const auto numPhases = contactFlags.size();
+
+                for (size_t phase = 1; phase + 1 < numPhases; ++phase)
+                {
+                    if (contactFlags[phase] || !contactFlags[phase - 1])
+                    {
+                        continue;
+                    }
+
+                    size_t finalPhase = phase;
+                    while (finalPhase + 1 < numPhases && !contactFlags[finalPhase + 1])
+                    {
+                        ++finalPhase;
+                    }
+
+                    if (modeSchedule.eventTimes[finalPhase] <= initTime)
+                    {
+                        continue;
+                    }
+
+                    const scalar_t swingStartTime = modeSchedule.eventTimes[phase - 1];
+                    const scalar_t swingFinalTime = modeSchedule.eventTimes[finalPhase];
+                    const scalar_t scaling = std::min<scalar_t>(
+                        1.0, (swingFinalTime - swingStartTime) / swingConfig.swingTimeScale);
+                    const scalar_t clearance = scaling * swingConfig.swingHeight;
+                    const scalar_t startZ = liftOffHeights[phase];
+                    const scalar_t targetZ = touchDownHeights[phase];
+                    const scalar_t apexZ = std::max(startZ, targetZ) + clearance;
+
+                    std::cerr << std::fixed << std::setprecision(3)
+                              << "[SwingHeight] leg=" << leg
+                              << " name=" << sequenceManager.getActiveRegion(leg).name
+                              << " active_set=" << sequenceManager.getActiveSetIndex()
+                              << " set_name=" << sequenceManager.getActiveSetName()
+                              << " start_z=" << startZ
+                              << " target_z=" << targetZ
+                              << " clearance=" << clearance
+                              << " apex_z=" << apexZ
+                              << std::endl;
+                    break;
+                }
+            }
+        }
     }
 
     void PerceptiveLeggedReferenceManager::modifyProjections(scalar_t initTime, const vector_t& initState, size_t leg,

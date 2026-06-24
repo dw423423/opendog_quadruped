@@ -109,13 +109,16 @@ ocs2_quadruped_controller:
       pause_gait_on_set_completed: true
       resume_gait_after_advance: "static_walk"
       auto_stance_on_final: true
+      require_z_for_reached: true
+      z_tolerance: 0.04
       stable_hold_time: 0.3
       active_set: 0
       set_names:
-        - set0
-        - set1
+        - set0_ground
+        - set1_front_feet_step1
+        - set2_front_feet_step2_rear_feet_step1
 
-      set0:
+      set0_ground:
         FL:
           x_min: 0.25
           x_max: 0.35
@@ -141,19 +144,19 @@ ocs2_quadruped_controller:
           y_max: -0.10
           z: 0.0
 
-      set1:
+      set1_front_feet_step1:
         FL:
           x_min: 0.45
           x_max: 0.55
           y_min: 0.10
           y_max: 0.18
-          z: 0.0
+          z: 0.15
         FR:
           x_min: 0.45
           x_max: 0.55
           y_min: -0.18
           y_max: -0.10
-          z: 0.0
+          z: 0.15
         RL:
           x_min: 0.15
           x_max: 0.25
@@ -166,6 +169,32 @@ ocs2_quadruped_controller:
           y_min: -0.18
           y_max: -0.10
           z: 0.0
+
+      set2_front_feet_step2_rear_feet_step1:
+        FL:
+          x_min: 0.85
+          x_max: 0.95
+          y_min: 0.10
+          y_max: 0.18
+          z: 0.30
+        FR:
+          x_min: 0.85
+          x_max: 0.95
+          y_min: -0.18
+          y_max: -0.10
+          z: 0.30
+        RL:
+          x_min: 0.45
+          x_max: 0.55
+          y_min: 0.10
+          y_max: 0.18
+          z: 0.15
+        RR:
+          x_min: 0.45
+          x_max: 0.55
+          y_min: -0.18
+          y_max: -0.10
+          z: 0.15
 
     imu_name: "imu_sensor"
     base_name: "base"

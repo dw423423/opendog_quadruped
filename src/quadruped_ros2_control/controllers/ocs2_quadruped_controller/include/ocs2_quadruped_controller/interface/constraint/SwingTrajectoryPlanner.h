@@ -60,6 +60,8 @@ namespace ocs2::legged_robot {
 
         scalar_t getZpositionConstraint(size_t leg, scalar_t time) const;
 
+        const Config& getConfig() const { return config_; }
+
     private:
         /**
          * Extracts for each leg the contact sequence over the motion phase sequence.

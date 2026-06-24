@@ -73,6 +73,20 @@ namespace ocs2::legged_robot
                        ? nullptr
                        : perceptiveReferenceManager->getConvexRegionSelectorPtr().get();
         }
+
+        const char* boolText(bool value)
+        {
+            return value ? "true" : "false";
+        }
+
+        scalar_t fixedFootholdZTolerance(const ConvexRegionSelector& selector)
+        {
+            if (selector.fixedFootholdSequenceEnabled())
+            {
+                return selector.getFixedFootholdSequenceManager().getConfig().zTolerance;
+            }
+            return 0.04;
+        }
     }
 
     StateOCS2::StateOCS2(CtrlInterfaces& ctrl_interfaces,
@@ -256,22 +270,57 @@ namespace ocs2::legged_robot
                                           touchdownState);
                     const vector3_t footPosition =
                         ctrl_component_->ee_kinematics_->getPosition(touchdownState)[leg];
-                    RCLCPP_INFO(node_->get_logger(),
-                                "[PREDICTED_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
-                                "swing_start=%.3f touchdown=%.3f mode=%zu "
-                                "predicted_foot=(%.3f, %.3f, %.3f) inside_xy=%s",
-                                leg,
-                                convexRegionSelector->getFixedFootholdRegion(leg).name,
-                                convexRegionSelector->fixedFootholdRegionToString(leg).c_str(),
-                                swingStartTime,
-                                touchdownTime,
-                                touchdownMode,
-                                footPosition.x(),
-                                footPosition.y(),
-                                footPosition.z(),
-                                convexRegionSelector->isInsideFixedFootholdRegionXY(leg, footPosition)
-                                    ? "true"
-                                    : "false");
+                    const auto& targetRegion = convexRegionSelector->getFixedFootholdRegion(leg);
+                    const auto check = checkFixedFootholdRegion(
+                        targetRegion, footPosition, fixedFootholdZTolerance(*convexRegionSelector));
+                    if (convexRegionSelector->fixedFootholdSequenceEnabled())
+                    {
+                        const auto& sequenceManager = convexRegionSelector->getFixedFootholdSequenceManager();
+                        RCLCPP_INFO(node_->get_logger(),
+                                    "[PREDICTED_TOUCHDOWN] leg=%zu name=%s active_set=%zu set_name=%s "
+                                    "target_z=%.3f swing_start=%.3f touchdown=%.3f mode=%zu "
+                                    "predicted_foot=(%.3f,%.3f,%.3f) predicted_z=%.3f z_error=%.3f "
+                                    "inside_xy=%s inside_z=%s inside_xyz=%s",
+                                    leg,
+                                    targetRegion.name,
+                                    sequenceManager.getActiveSetIndex(),
+                                    sequenceManager.getActiveSetName().c_str(),
+                                    targetRegion.z,
+                                    swingStartTime,
+                                    touchdownTime,
+                                    touchdownMode,
+                                    footPosition.x(),
+                                    footPosition.y(),
+                                    footPosition.z(),
+                                    footPosition.z(),
+                                    check.zError,
+                                    boolText(check.insideXY),
+                                    boolText(check.insideZ),
+                                    boolText(check.insideXYZ));
+                    }
+                    else
+                    {
+                        RCLCPP_INFO(node_->get_logger(),
+                                    "[PREDICTED_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
+                                    "target_z=%.3f swing_start=%.3f touchdown=%.3f mode=%zu "
+                                    "predicted_foot=(%.3f,%.3f,%.3f) predicted_z=%.3f z_error=%.3f "
+                                    "inside_xy=%s inside_z=%s inside_xyz=%s",
+                                    leg,
+                                    targetRegion.name,
+                                    convexRegionSelector->fixedFootholdRegionToString(leg).c_str(),
+                                    targetRegion.z,
+                                    swingStartTime,
+                                    touchdownTime,
+                                    touchdownMode,
+                                    footPosition.x(),
+                                    footPosition.y(),
+                                    footPosition.z(),
+                                    footPosition.z(),
+                                    check.zError,
+                                    boolText(check.insideXY),
+                                    boolText(check.insideZ),
+                                    boolText(check.insideXYZ));
+                    }
                 }
                 catch (const std::exception& e)
                 {
@@ -305,37 +354,92 @@ namespace ocs2::legged_robot
                     if (!last_actual_touchdown_contacts_[leg] && actualContacts[leg])
                     {
                         const auto& footPosition = actualFootPositions[leg];
-                        const bool inside = convexRegionSelector->isInsideFixedFootholdRegionXY(leg, footPosition);
-                        RCLCPP_INFO(node_->get_logger(),
-                                    "[ACTUAL_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
-                                    "time=%.3f actual_foot=(%.3f, %.3f, %.3f) inside_xy=%s",
-                                    leg,
-                                    convexRegionSelector->getFixedFootholdRegion(leg).name,
-                                    convexRegionSelector->fixedFootholdRegionToString(leg).c_str(),
-                                    ctrl_component_->observation_.time,
-                                    footPosition.x(),
-                                    footPosition.y(),
-                                    footPosition.z(),
-                                    inside ? "true" : "false");
+                        const auto& targetRegion = convexRegionSelector->getFixedFootholdRegion(leg);
+                        const auto check = checkFixedFootholdRegion(
+                            targetRegion, footPosition, fixedFootholdZTolerance(*convexRegionSelector));
+                        if (convexRegionSelector->fixedFootholdSequenceEnabled())
+                        {
+                            const auto& sequenceManager = convexRegionSelector->getFixedFootholdSequenceManager();
+                            RCLCPP_INFO(node_->get_logger(),
+                                        "[ACTUAL_TOUCHDOWN] leg=%zu name=%s active_set=%zu set_name=%s "
+                                        "time=%.3f target_z=%.3f actual_foot=(%.3f,%.3f,%.3f) "
+                                        "actual_z=%.3f z_error=%.3f inside_xy=%s inside_z=%s inside_xyz=%s",
+                                        leg,
+                                        targetRegion.name,
+                                        sequenceManager.getActiveSetIndex(),
+                                        sequenceManager.getActiveSetName().c_str(),
+                                        ctrl_component_->observation_.time,
+                                        targetRegion.z,
+                                        footPosition.x(),
+                                        footPosition.y(),
+                                        footPosition.z(),
+                                        footPosition.z(),
+                                        check.zError,
+                                        boolText(check.insideXY),
+                                        boolText(check.insideZ),
+                                        boolText(check.insideXYZ));
+                        }
+                        else
+                        {
+                            RCLCPP_INFO(node_->get_logger(),
+                                        "[ACTUAL_TOUCHDOWN] leg=%zu name=%s selected_region=%s "
+                                        "time=%.3f target_z=%.3f actual_foot=(%.3f,%.3f,%.3f) "
+                                        "actual_z=%.3f z_error=%.3f inside_xy=%s inside_z=%s inside_xyz=%s",
+                                        leg,
+                                        targetRegion.name,
+                                        convexRegionSelector->fixedFootholdRegionToString(leg).c_str(),
+                                        ctrl_component_->observation_.time,
+                                        targetRegion.z,
+                                        footPosition.x(),
+                                        footPosition.y(),
+                                        footPosition.z(),
+                                        footPosition.z(),
+                                        check.zError,
+                                        boolText(check.insideXY),
+                                        boolText(check.insideZ),
+                                        boolText(check.insideXYZ));
+                        }
 
                         if (convexRegionSelector->fixedFootholdSequenceEnabled())
                         {
                             auto& sequenceManager = convexRegionSelector->getFixedFootholdSequenceManager();
                             const size_t activeSetBefore = sequenceManager.getActiveSetIndex();
                             const std::string activeSetNameBefore = sequenceManager.getActiveSetName();
-                            const bool insideSequenceRegion = sequenceManager.markLegTouchdown(leg, footPosition);
+                            const auto sequenceCheck = sequenceManager.markLegTouchdown(leg, footPosition);
+                            const bool reachedThisTouchdown = sequenceManager.getConfig().requireZForReached
+                                                                  ? sequenceCheck.insideXYZ
+                                                                  : sequenceCheck.insideXY;
                             RCLCPP_INFO(node_->get_logger(),
                                         "[FootholdSequence] touchdown leg=%zu name=%s active_set=%zu "
-                                        "set_name=%s actual_foot=(%.3f,%.3f,%.3f) inside_xy=%s reached=%s",
+                                        "set_name=%s target_z=%.3f actual_foot=(%.3f,%.3f,%.3f) "
+                                        "actual_z=%.3f z_error=%.3f inside_xy=%s inside_z=%s "
+                                        "inside_xyz=%s reached=%s",
                                         leg,
                                         sequenceManager.getActiveRegion(leg).name,
                                         activeSetBefore,
                                         activeSetNameBefore.c_str(),
+                                        sequenceManager.getActiveRegion(leg).z,
                                         footPosition.x(),
                                         footPosition.y(),
                                         footPosition.z(),
-                                        insideSequenceRegion ? "true" : "false",
+                                        footPosition.z(),
+                                        sequenceCheck.zError,
+                                        boolText(sequenceCheck.insideXY),
+                                        boolText(sequenceCheck.insideZ),
+                                        boolText(sequenceCheck.insideXYZ),
                                         sequenceManager.reachedToString().c_str());
+                            if (!reachedThisTouchdown)
+                            {
+                                const char* reason = sequenceCheck.insideXY ? "outside_z" : "outside_xy";
+                                RCLCPP_INFO(node_->get_logger(),
+                                            "[FootholdSequence] touchdown_not_reached leg=%zu reason=%s "
+                                            "target_z=%.3f actual_z=%.3f z_error=%.3f",
+                                            leg,
+                                            reason,
+                                            sequenceManager.getActiveRegion(leg).z,
+                                            footPosition.z(),
+                                            sequenceCheck.zError);
+                            }
 
                             if (sequenceManager.isCurrentSetCompleted())
                             {
