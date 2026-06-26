@@ -9,6 +9,7 @@
 #include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 
 #include <array>
+#include <cmath>
 #include <limits>
 #include <string>
 #include <utility>
@@ -47,6 +48,185 @@ namespace ocs2::legged_robot
                 point.z = region.z;
                 marker.points.push_back(point);
             }
+            return marker;
+        }
+
+        bool almostEqual(double lhs, double rhs)
+        {
+            return std::abs(lhs - rhs) < 1e-6;
+        }
+
+        bool isDefaultNoStepHole(const convex_plane_decomposition::CgalPolygon2d& hole)
+        {
+            if (hole.is_empty())
+            {
+                return false;
+            }
+
+            struct Bounds
+            {
+                double xMin;
+                double xMax;
+                double yMin;
+                double yMax;
+            };
+
+            constexpr std::array<Bounds, 3> noStepBounds = {
+                Bounds{-1.80, -1.60, -1.30, 1.30},
+                Bounds{0.85, 1.60, 0.70, 1.45},
+                Bounds{1.20, 1.50, -1.85, -0.40},
+            };
+            const auto bbox = hole.bbox();
+            for (const auto& bounds : noStepBounds)
+            {
+                if (almostEqual(bbox.xmin(), bounds.xMin) &&
+                    almostEqual(bbox.xmax(), bounds.xMax) &&
+                    almostEqual(bbox.ymin(), bounds.yMin) &&
+                    almostEqual(bbox.ymax(), bounds.yMax))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool isGazeboStairTopRegion(const convex_plane_decomposition::PlanarRegion& planarRegion)
+        {
+            struct StairTop
+            {
+                double xMin;
+                double xMax;
+                double yMin;
+                double yMax;
+                double z;
+            };
+
+            constexpr std::array<StairTop, 2> stairTops = {
+                StairTop{0.40, 0.75, -0.40, 0.40, 0.15},
+                StairTop{0.75, 1.10, -0.40, 0.40, 0.30},
+            };
+            const auto& boundary = planarRegion.boundaryWithInset.boundary.outer_boundary();
+            if (boundary.is_empty())
+            {
+                return false;
+            }
+
+            const auto bbox = boundary.bbox();
+            const auto z = planarRegion.transformPlaneToWorld.translation().z();
+            for (const auto& stairTop : stairTops)
+            {
+                if (almostEqual(bbox.xmin(), stairTop.xMin) &&
+                    almostEqual(bbox.xmax(), stairTop.xMax) &&
+                    almostEqual(bbox.ymin(), stairTop.yMin) &&
+                    almostEqual(bbox.ymax(), stairTop.yMax) &&
+                    almostEqual(z, stairTop.z))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        geometry_msgs::msg::Point toRosPoint(const convex_plane_decomposition::CgalPoint2d& point,
+                                             const Eigen::Isometry3d& transformPlaneToWorld,
+                                             scalar_t zOffset = 0.0)
+        {
+            const auto pointInWorld = convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                point, transformPlaneToWorld);
+            geometry_msgs::msg::Point pointRos;
+            pointRos.x = pointInWorld.x();
+            pointRos.y = pointInWorld.y();
+            pointRos.z = pointInWorld.z() + zOffset;
+            return pointRos;
+        }
+
+        visualization_msgs::msg::Marker getStairSteppableSurfaceMarker(
+            const std_msgs::msg::Header& header,
+            const convex_plane_decomposition::CgalPolygon2d& polygon,
+            const Eigen::Isometry3d& transformPlaneToWorld,
+            size_t stairIndex)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header = header;
+            marker.ns = "Stair Steppable Surfaces";
+            marker.id = 22000 + static_cast<int>(stairIndex);
+            marker.type = visualization_msgs::msg::Marker::TRIANGLE_LIST;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+            marker.color = getColor(Color::green, 0.22);
+
+            if (polygon.size() >= 3)
+            {
+                for (size_t i = 1; i + 1 < polygon.size(); ++i)
+                {
+                    marker.points.push_back(toRosPoint(polygon.vertex(0), transformPlaneToWorld, 0.012));
+                    marker.points.push_back(toRosPoint(polygon.vertex(static_cast<int>(i)), transformPlaneToWorld, 0.012));
+                    marker.points.push_back(toRosPoint(polygon.vertex(static_cast<int>(i + 1)), transformPlaneToWorld, 0.012));
+                }
+            }
+            return marker;
+        }
+
+        visualization_msgs::msg::Marker getStairSteppableOutlineMarker(
+            const std_msgs::msg::Header& header,
+            const convex_plane_decomposition::CgalPolygon2d& polygon,
+            const Eigen::Isometry3d& transformPlaneToWorld,
+            size_t stairIndex)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header = header;
+            marker.ns = "Stair Steppable Regions";
+            marker.id = 23000 + static_cast<int>(stairIndex);
+            marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+            marker.scale.x = 0.018;
+            marker.color = getColor(Color::green, 1.0);
+
+            if (!polygon.is_empty())
+            {
+                marker.points.reserve(polygon.size() + 1);
+                for (const auto& point : polygon)
+                {
+                    marker.points.push_back(toRosPoint(point, transformPlaneToWorld, 0.018));
+                }
+                marker.points.push_back(toRosPoint(polygon.vertex(0), transformPlaneToWorld, 0.018));
+            }
+            return marker;
+        }
+
+        visualization_msgs::msg::Marker getStairSteppableLabelMarker(
+            const std_msgs::msg::Header& header,
+            const convex_plane_decomposition::CgalPolygon2d& polygon,
+            const Eigen::Isometry3d& transformPlaneToWorld,
+            size_t stairIndex)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header = header;
+            marker.ns = "Stair Steppable Labels";
+            marker.id = 24000 + static_cast<int>(stairIndex);
+            marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+            marker.scale.z = 0.10;
+            marker.color = getColor(Color::green, 1.0);
+            marker.text = std::string("Step ") + std::to_string(stairIndex + 1);
+
+            if (!polygon.is_empty())
+            {
+                vector3_t center = vector3_t::Zero();
+                for (const auto& point : polygon)
+                {
+                    const auto pointInWorld = convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                        point, transformPlaneToWorld);
+                    center += pointInWorld;
+                }
+                center /= static_cast<scalar_t>(polygon.size());
+                marker.pose.position.x = center.x();
+                marker.pose.position.y = center.y();
+                marker.pose.position.z = center.z() + 0.08;
+            }
+
             return marker;
         }
 
@@ -154,10 +334,27 @@ namespace ocs2::legged_robot
             if (const auto planarTerrain = convex_region_selector_.getPlanarTerrainPtr())
             {
                 size_t noStepRegionIndex = 0;
+                size_t stairRegionIndex = 0;
                 for (const auto& planarRegion : planarTerrain->planarRegions)
                 {
+                    if (isGazeboStairTopRegion(planarRegion))
+                    {
+                        const auto& stairTop = planarRegion.boundaryWithInset.boundary.outer_boundary();
+                        makerArray.markers.push_back(getStairSteppableSurfaceMarker(
+                            header, stairTop, planarRegion.transformPlaneToWorld, stairRegionIndex));
+                        makerArray.markers.push_back(getStairSteppableOutlineMarker(
+                            header, stairTop, planarRegion.transformPlaneToWorld, stairRegionIndex));
+                        makerArray.markers.push_back(getStairSteppableLabelMarker(
+                            header, stairTop, planarRegion.transformPlaneToWorld, stairRegionIndex));
+                        ++stairRegionIndex;
+                    }
+
                     for (const auto& hole : planarRegion.boundaryWithInset.boundary.holes())
                     {
+                        if (!isDefaultNoStepHole(hole))
+                        {
+                            continue;
+                        }
                         makerArray.markers.push_back(getNoStepRegionMarker(
                             header, hole, planarRegion.transformPlaneToWorld, noStepRegionIndex));
                         makerArray.markers.push_back(getNoStepRegionLabelMarker(

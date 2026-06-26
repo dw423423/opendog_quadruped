@@ -15,6 +15,8 @@
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematicsCppAd.h>
 
+#include <grid_map_core/iterators/GridMapIterator.hpp>
+
 #include <array>
 #include <exception>
 #include <memory>
@@ -35,12 +37,27 @@ namespace ocs2::legged_robot
             double yMax;
         };
 
+        struct StairStepRegion
+        {
+            const char* name;
+            double xMin;
+            double xMax;
+            double yMin;
+            double yMax;
+            double topHeight;
+        };
+
         constexpr std::array<NoStepRegion, 3> kDefaultNoStepRegions = {
             NoStepRegion{"B", -1.75, -1.65, -1.25, 1.25},
             NoStepRegion{"C", 0.90, 1.55, 0.75, 1.40},
             NoStepRegion{"D", 1.25, 1.45, -1.80, -0.45},
         };
+        constexpr std::array<StairStepRegion, 2> kGazeboStairSteps = {
+            StairStepRegion{"fixed_step_01", 0.40, 0.75, -0.40, 0.40, 0.15},
+            StairStepRegion{"fixed_step_02", 0.75, 1.10, -0.40, 0.40, 0.30},
+        };
         constexpr double kNoStepSafetyMargin = 0.05;
+        constexpr double kTerrainInset = 0.01;
 
         convex_plane_decomposition::CgalPolygon2d makeRectangle(double xMin, double xMax,
                                                                 double yMin, double yMax)
@@ -61,6 +78,60 @@ namespace ocs2::legged_robot
                                                         region.xMax + kNoStepSafetyMargin,
                                                         region.yMin - kNoStepSafetyMargin,
                                                         region.yMax + kNoStepSafetyMargin));
+            }
+        }
+
+        void addStairFootprintHoles(convex_plane_decomposition::CgalPolygonWithHoles2d& polygon)
+        {
+            for (const auto& step : kGazeboStairSteps)
+            {
+                polygon.holes().push_back(makeRectangle(step.xMin, step.xMax, step.yMin, step.yMax));
+            }
+        }
+
+        convex_plane_decomposition::PlanarRegion makeHorizontalPlanarRegion(double xMin, double xMax,
+                                                                            double yMin, double yMax,
+                                                                            double z)
+        {
+            convex_plane_decomposition::PlanarRegion region;
+            region.transformPlaneToWorld.setIdentity();
+            region.transformPlaneToWorld.translation().z() = z;
+            region.bbox2d = convex_plane_decomposition::CgalBbox2d(xMin, yMin, xMax, yMax);
+
+            convex_plane_decomposition::CgalPolygonWithHoles2d boundary;
+            boundary.outer_boundary() = makeRectangle(xMin, xMax, yMin, yMax);
+            region.boundaryWithInset.boundary = boundary;
+
+            convex_plane_decomposition::CgalPolygonWithHoles2d inset;
+            inset.outer_boundary() = makeRectangle(xMin + kTerrainInset, xMax - kTerrainInset,
+                                                   yMin + kTerrainInset, yMax - kTerrainInset);
+            region.boundaryWithInset.insets.push_back(inset);
+            return region;
+        }
+
+        void addGazeboStairsToGridMap(grid_map::GridMap& gridMap, const std::string& elevationLayer,
+                                      const std::string& smoothLayer)
+        {
+            for (grid_map::GridMapIterator iterator(gridMap); !iterator.isPastEnd(); ++iterator)
+            {
+                grid_map::Position position;
+                if (!gridMap.getPosition(*iterator, position))
+                {
+                    continue;
+                }
+
+                double height = 0.0;
+                for (const auto& step : kGazeboStairSteps)
+                {
+                    if (position.x() >= step.xMin && position.x() <= step.xMax &&
+                        position.y() >= step.yMin && position.y() <= step.yMax)
+                    {
+                        height = step.topHeight;
+                    }
+                }
+
+                gridMap.at(elevationLayer, *iterator) = height;
+                gridMap.at(smoothLayer, *iterator) = height;
             }
         }
 
@@ -108,6 +179,7 @@ namespace ocs2::legged_robot
         boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(-height / 2, -width / 2));
         boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(+height / 2, -width / 2));
         addDefaultNoStepRegions(boundary);
+        addStairFootprintHoles(boundary);
         plannerRegion.boundaryWithInset.boundary = boundary;
         convex_plane_decomposition::CgalPolygonWithHoles2d insets;
         insets.outer_boundary().push_back(
@@ -119,13 +191,20 @@ namespace ocs2::legged_robot
         insets.outer_boundary().push_back(
             convex_plane_decomposition::CgalPoint2d(+height / 2 - 0.01, -width / 2 + 0.01));
         addDefaultNoStepRegions(insets);
+        addStairFootprintHoles(insets);
         plannerRegion.boundaryWithInset.insets.push_back(insets);
         planarTerrainPtr_->planarRegions.push_back(plannerRegion);
+        for (const auto& step : kGazeboStairSteps)
+        {
+            planarTerrainPtr_->planarRegions.push_back(makeHorizontalPlanarRegion(
+                step.xMin, step.xMax, step.yMin, step.yMax, step.topHeight));
+        }
 
         std::string layer = "elevation_before_postprocess";
         planarTerrainPtr_->gridMap.setGeometry(grid_map::Length(10.0, 10.0), 0.03);
         planarTerrainPtr_->gridMap.add(layer, 0);
         planarTerrainPtr_->gridMap.add("smooth_planar", 0);
+        addGazeboStairsToGridMap(planarTerrainPtr_->gridMap, layer, "smooth_planar");
         signedDistanceFieldPtr_ = std::make_shared<grid_map::SignedDistanceField>();
         signedDistanceFieldPtr_->calculateSignedDistanceField(planarTerrainPtr_->gridMap, layer, 0.1);
 
