@@ -46,6 +46,11 @@ namespace ocs2::legged_robot
 
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> getPlanarTerrainPtr() { return planarTerrainPtr_; }
 
+        std::shared_ptr<const convex_plane_decomposition::PlanarTerrain> getPlanarTerrainPtr() const
+        {
+            return planarTerrainPtr_;
+        }
+
         feet_array_t<scalar_t> getInitStandFinalTimes() { return initStandFinalTime_; }
 
         const FixedFootholdRegionSettings& getFixedFootholdRegionSettings() const

@@ -74,7 +74,7 @@ ocs2_quadruped_controller:
     rf_target_y: -0.12
 
     fixed_foothold_regions:
-      enable: true
+      enable: false
       frame: "world"
       FL:
         x_min: 0.25
@@ -102,7 +102,7 @@ ocs2_quadruped_controller:
         z: 0.0
 
     fixed_foothold_sequence:
-      enable: true
+      enable: false
       frame: "world"
       manual_advance: true
       advance_key: "g"

@@ -15,6 +15,7 @@
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematicsCppAd.h>
 
+#include <array>
 #include <exception>
 #include <memory>
 #include <string>
@@ -25,6 +26,44 @@ namespace ocs2::legged_robot
 {
     namespace
     {
+        struct NoStepRegion
+        {
+            const char* name;
+            double xMin;
+            double xMax;
+            double yMin;
+            double yMax;
+        };
+
+        constexpr std::array<NoStepRegion, 3> kDefaultNoStepRegions = {
+            NoStepRegion{"B", -1.75, -1.65, -1.25, 1.25},
+            NoStepRegion{"C", 0.90, 1.55, 0.75, 1.40},
+            NoStepRegion{"D", 1.25, 1.45, -1.80, -0.45},
+        };
+        constexpr double kNoStepSafetyMargin = 0.05;
+
+        convex_plane_decomposition::CgalPolygon2d makeRectangle(double xMin, double xMax,
+                                                                double yMin, double yMax)
+        {
+            convex_plane_decomposition::CgalPolygon2d rectangle;
+            rectangle.push_back(convex_plane_decomposition::CgalPoint2d(xMax, yMax));
+            rectangle.push_back(convex_plane_decomposition::CgalPoint2d(xMin, yMax));
+            rectangle.push_back(convex_plane_decomposition::CgalPoint2d(xMin, yMin));
+            rectangle.push_back(convex_plane_decomposition::CgalPoint2d(xMax, yMin));
+            return rectangle;
+        }
+
+        void addDefaultNoStepRegions(convex_plane_decomposition::CgalPolygonWithHoles2d& polygon)
+        {
+            for (const auto& region : kDefaultNoStepRegions)
+            {
+                polygon.holes().push_back(makeRectangle(region.xMin - kNoStepSafetyMargin,
+                                                        region.xMax + kNoStepSafetyMargin,
+                                                        region.yMin - kNoStepSafetyMargin,
+                                                        region.yMax + kNoStepSafetyMargin));
+            }
+        }
+
         std::vector<std::string> getCalfCollisionLinks(const std::vector<std::string>& footNames)
         {
             std::vector<std::string> collisionLinks;
@@ -59,7 +98,7 @@ namespace ocs2::legged_robot
     {
         planarTerrainPtr_ = std::make_shared<convex_plane_decomposition::PlanarTerrain>();
 
-        double width{5.0}, height{5.0};
+        double width{10.0}, height{10.0};
         convex_plane_decomposition::PlanarRegion plannerRegion;
         plannerRegion.transformPlaneToWorld.setIdentity();
         plannerRegion.bbox2d = convex_plane_decomposition::CgalBbox2d(-height / 2, -width / 2, +height / 2, width / 2);
@@ -68,6 +107,7 @@ namespace ocs2::legged_robot
         boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(-height / 2, +width / 2));
         boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(-height / 2, -width / 2));
         boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(+height / 2, -width / 2));
+        addDefaultNoStepRegions(boundary);
         plannerRegion.boundaryWithInset.boundary = boundary;
         convex_plane_decomposition::CgalPolygonWithHoles2d insets;
         insets.outer_boundary().push_back(
@@ -78,11 +118,12 @@ namespace ocs2::legged_robot
             convex_plane_decomposition::CgalPoint2d(-height / 2 + 0.01, -width / 2 + 0.01));
         insets.outer_boundary().push_back(
             convex_plane_decomposition::CgalPoint2d(+height / 2 - 0.01, -width / 2 + 0.01));
+        addDefaultNoStepRegions(insets);
         plannerRegion.boundaryWithInset.insets.push_back(insets);
         planarTerrainPtr_->planarRegions.push_back(plannerRegion);
 
         std::string layer = "elevation_before_postprocess";
-        planarTerrainPtr_->gridMap.setGeometry(grid_map::Length(5.0, 5.0), 0.03);
+        planarTerrainPtr_->gridMap.setGeometry(grid_map::Length(10.0, 10.0), 0.03);
         planarTerrainPtr_->gridMap.add(layer, 0);
         planarTerrainPtr_->gridMap.add("smooth_planar", 0);
         signedDistanceFieldPtr_ = std::make_shared<grid_map::SignedDistanceField>();

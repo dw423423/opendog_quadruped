@@ -10,6 +10,7 @@
 #include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 
 #include <convex_plane_decomposition/ConvexRegionGrowing.h>
+#include <convex_plane_decomposition/GeometryUtils.h>
 
 #include <algorithm>
 #include <array>
@@ -82,6 +83,43 @@ namespace ocs2::legged_robot
             }
             lastLogTime = initTime;
             return true;
+        }
+
+        void nudgeProjectionTowardInterior(const vector3_t& nominalFoothold,
+                                           convex_plane_decomposition::PlanarTerrainProjection& projection)
+        {
+            if (projection.regionPtr == nullptr)
+            {
+                return;
+            }
+
+            const vector3_t nominalInTerrain =
+                projection.regionPtr->transformPlaneToWorld.inverse() * nominalFoothold;
+            Eigen::Matrix<scalar_t, 2, 1> nominal2d(nominalInTerrain.x(), nominalInTerrain.y());
+            Eigen::Matrix<scalar_t, 2, 1> projected2d(
+                projection.positionInTerrainFrame.x(), projection.positionInTerrainFrame.y());
+            Eigen::Matrix<scalar_t, 2, 1> direction = projected2d - nominal2d;
+            const scalar_t distance = direction.norm();
+            if (distance < 1e-6)
+            {
+                return;
+            }
+
+            constexpr scalar_t nudgeDistance = 0.01;
+            direction /= distance;
+            const convex_plane_decomposition::CgalPoint2d nudgedPoint(
+                projection.positionInTerrainFrame.x() + nudgeDistance * direction.x(),
+                projection.positionInTerrainFrame.y() + nudgeDistance * direction.y());
+            if (!convex_plane_decomposition::isInside(
+                    nudgedPoint, projection.regionPtr->boundaryWithInset.boundary))
+            {
+                return;
+            }
+
+            projection.positionInTerrainFrame = nudgedPoint;
+            projection.positionInWorld =
+                convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                    nudgedPoint, projection.regionPtr->transformPlaneToWorld);
         }
     }
 
@@ -208,6 +246,7 @@ namespace ocs2::legged_robot
                                 << std::endl;
                             continue;
                         }
+                        nudgeProjectionTowardInterior(footPos, projection);
                         scalar_t growthFactor = 1.05;
                         auto convexRegion = convex_plane_decomposition::growConvexPolygonInsideShape(
                             projection.regionPtr->boundaryWithInset.boundary, projection.positionInTerrainFrame,

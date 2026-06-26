@@ -9,6 +9,8 @@
 #include <ocs2_quadruped_controller/perceptive/interface/FixedFootholdRegions.h>
 
 #include <array>
+#include <limits>
+#include <string>
 #include <utility>
 
 namespace ocs2::legged_robot
@@ -47,6 +49,83 @@ namespace ocs2::legged_robot
             }
             return marker;
         }
+
+        visualization_msgs::msg::Marker getNoStepRegionMarker(const std_msgs::msg::Header& header,
+                                                              const convex_plane_decomposition::CgalPolygon2d& hole,
+                                                              const Eigen::Isometry3d& transformPlaneToWorld,
+                                                              size_t regionIndex)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header = header;
+            marker.ns = "No-Step Regions";
+            marker.id = 20000 + static_cast<int>(regionIndex);
+            marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+            marker.scale.x = 0.02;
+            marker.color = getColor(Color::red, 0.9);
+
+            if (!hole.is_empty())
+            {
+                marker.points.reserve(hole.size() + 1);
+                for (const auto& point : hole)
+                {
+                    const auto pointInWorld = convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                        point, transformPlaneToWorld);
+                    geometry_msgs::msg::Point pointRos;
+                    pointRos.x = pointInWorld.x();
+                    pointRos.y = pointInWorld.y();
+                    pointRos.z = pointInWorld.z() + 0.01;
+                    marker.points.push_back(pointRos);
+                }
+                const auto firstPointInWorld =
+                    convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                        hole.vertex(0), transformPlaneToWorld);
+                geometry_msgs::msg::Point firstPointRos;
+                firstPointRos.x = firstPointInWorld.x();
+                firstPointRos.y = firstPointInWorld.y();
+                firstPointRos.z = firstPointInWorld.z() + 0.01;
+                marker.points.push_back(firstPointRos);
+            }
+
+            return marker;
+        }
+
+        visualization_msgs::msg::Marker getNoStepRegionLabelMarker(const std_msgs::msg::Header& header,
+                                                                   const convex_plane_decomposition::CgalPolygon2d& hole,
+                                                                   const Eigen::Isometry3d& transformPlaneToWorld,
+                                                                   size_t regionIndex)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header = header;
+            marker.ns = "No-Step Labels";
+            marker.id = 21000 + static_cast<int>(regionIndex);
+            marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+            marker.scale.z = 0.12;
+            marker.color = getColor(Color::red, 1.0);
+            constexpr std::array<const char*, 3> labels = {"B", "C", "D"};
+            marker.text = regionIndex < labels.size()
+                              ? labels[regionIndex]
+                              : std::string("No-Step ") + std::to_string(regionIndex);
+
+            if (!hole.is_empty())
+            {
+                vector3_t center = vector3_t::Zero();
+                for (const auto& point : hole)
+                {
+                    center += convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                        point, transformPlaneToWorld);
+                }
+                center /= static_cast<scalar_t>(hole.size());
+                marker.pose.position.x = center.x();
+                marker.pose.position.y = center.y();
+                marker.pose.position.z = center.z() + 0.05;
+            }
+
+            return marker;
+        }
     }
 
     FootPlacementVisualization::FootPlacementVisualization(const ConvexRegionSelector& convexRegionSelector,
@@ -72,6 +151,22 @@ namespace ocs2::legged_robot
             header.frame_id = "odom";
 
             visualization_msgs::msg::MarkerArray makerArray;
+            if (const auto planarTerrain = convex_region_selector_.getPlanarTerrainPtr())
+            {
+                size_t noStepRegionIndex = 0;
+                for (const auto& planarRegion : planarTerrain->planarRegions)
+                {
+                    for (const auto& hole : planarRegion.boundaryWithInset.boundary.holes())
+                    {
+                        makerArray.markers.push_back(getNoStepRegionMarker(
+                            header, hole, planarRegion.transformPlaneToWorld, noStepRegionIndex));
+                        makerArray.markers.push_back(getNoStepRegionLabelMarker(
+                            header, hole, planarRegion.transformPlaneToWorld, noStepRegionIndex));
+                        ++noStepRegionIndex;
+                    }
+                }
+            }
+
             if (convex_region_selector_.fixedFootholdRegionsEnabled())
             {
                 const auto& settings = convex_region_selector_.getFixedFootholdRegionSettings();
