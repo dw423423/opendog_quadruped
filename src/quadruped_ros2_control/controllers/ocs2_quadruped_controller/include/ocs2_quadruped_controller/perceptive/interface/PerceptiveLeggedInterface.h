@@ -21,6 +21,9 @@ namespace ocs2::legged_robot
                                   defaultFixedFootholdRegionSettings(),
                                   FixedFootholdSequenceConfig fixedFootholdSequenceConfig =
                                   defaultFixedFootholdSequenceConfig(),
+                                  StairFootholdRegionSettings stairFootholdRegionSettings =
+                                  defaultStairFootholdRegionSettings(),
+                                  scalar_t groundSteppableErosionMargin = 0.0,
                                   bool useHardFrictionConeConstraint = false);
 
         void setupOptimalControlProblem(const std::string& taskFile,
@@ -66,5 +69,7 @@ namespace ocs2::legged_robot
         std::shared_ptr<PinocchioSphereInterface> pinocchioSphereInterfacePtr_;
         FixedFootholdRegionSettings fixedFootholdRegionSettings_;
         FixedFootholdSequenceConfig fixedFootholdSequenceConfig_;
+        StairFootholdRegionSettings stairFootholdRegionSettings_;
+        scalar_t groundSteppableErosionMargin_ = 0.0;
     };
 } // namespace ocs2::legged_robot

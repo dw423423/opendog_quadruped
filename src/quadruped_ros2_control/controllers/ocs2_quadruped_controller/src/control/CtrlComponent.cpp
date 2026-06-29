@@ -54,6 +54,7 @@ namespace ocs2::legged_robot
 
         const std::string package_share_directory = ament_index_cpp::get_package_share_directory(robot_pkg_);
         fixed_foothold_region_settings_ = loadFixedFootholdRegionSettings();
+        stair_foothold_region_settings_ = loadStairFootholdRegionSettings();
         fixed_foothold_sequence_config_ =
             loadFixedFootholdSequenceConfig(package_share_directory + "/config/gazebo.yaml");
         foothold_sequence_advance_sub_ = node_->create_subscription<std_msgs::msg::Empty>(
@@ -241,7 +242,7 @@ namespace ocs2::legged_robot
         {
             legged_interface_ = std::make_unique<PerceptiveLeggedInterface>(
                 task_file_, urdf_file_, reference_file_, fixed_foothold_region_settings_,
-                fixed_foothold_sequence_config_);
+                fixed_foothold_sequence_config_, stair_foothold_region_settings_);
             RCLCPP_INFO(node_->get_logger(),
                         "[CtrlComponent] enable_perceptive=true, created PerceptiveLeggedInterface");
         }
@@ -340,6 +341,78 @@ namespace ocs2::legged_robot
                         leg, region.name, region.xMin, region.xMax, region.yMin, region.yMax, region.z);
         }
 
+        return settings;
+    }
+
+    StairFootholdRegionSettings CtrlComponent::loadStairFootholdRegionSettings()
+    {
+        StairFootholdRegionSettings settings = defaultStairFootholdRegionSettings();
+
+        auto getBoolParam = [this](const std::string& name, bool defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_bool();
+        };
+
+        auto getDoubleParam = [this](const std::string& name, double defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_double();
+        };
+
+        auto getSizeParam = [this](const std::string& name, size_t defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, static_cast<int64_t>(defaultValue));
+            }
+            return static_cast<size_t>(node_->get_parameter(name).as_int());
+        };
+
+        settings.enable = getBoolParam("stair_foothold.enable", settings.enable);
+        settings.preferStairTopWhenInsideFootprint =
+            getBoolParam("stair_foothold.prefer_stair_top_when_inside_footprint",
+                         settings.preferStairTopWhenInsideFootprint);
+        settings.lockRegionDuringSwing =
+            getBoolParam("stair_foothold.lock_region_during_swing", settings.lockRegionDuringSwing);
+        settings.numSteps = getSizeParam("stair_foothold.num_steps", settings.numSteps);
+        settings.stepXStart = getDoubleParam("stair_foothold.step_x_start", settings.stepXStart);
+        settings.stepDepth = getDoubleParam("stair_foothold.step_depth", settings.stepDepth);
+        settings.stepHeight = getDoubleParam("stair_foothold.step_height", settings.stepHeight);
+        settings.stepWidth = getDoubleParam("stair_foothold.step_width", settings.stepWidth);
+        settings.stairYCenter = getDoubleParam("stair_foothold.stair_y_center", settings.stairYCenter);
+        settings.edgeMarginX = getDoubleParam("stair_foothold.edge_margin_x", settings.edgeMarginX);
+        settings.edgeMarginY = getDoubleParam("stair_foothold.edge_margin_y", settings.edgeMarginY);
+        settings.activeRegionHalfLengthX =
+            getDoubleParam("stair_foothold.active_region_half_length_x",
+                           settings.activeRegionHalfLengthX);
+        settings.activeRegionHalfLengthY =
+            getDoubleParam("stair_foothold.active_region_half_length_y",
+                           settings.activeRegionHalfLengthY);
+
+        if (settings.stepDepth <= 0.0 || settings.stepHeight <= 0.0 || settings.stepWidth <= 0.0 ||
+            settings.numSteps == 0)
+        {
+            RCLCPP_WARN(node_->get_logger(),
+                        "[StairFoothold] invalid stair geometry; disabling stair-aware region selection");
+            settings.enable = false;
+        }
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "[StairFoothold] enable=%s prefer_top=%s steps=%zu x_start=%.3f depth=%.3f "
+                    "height=%.3f width=%.3f y_center=%.3f margin=(%.3f,%.3f) lock=%s",
+                    boolString(settings.enable),
+                    boolString(settings.preferStairTopWhenInsideFootprint),
+                    settings.numSteps, settings.stepXStart, settings.stepDepth,
+                    settings.stepHeight, settings.stepWidth, settings.stairYCenter,
+                    settings.edgeMarginX, settings.edgeMarginY,
+                    boolString(settings.lockRegionDuringSwing));
         return settings;
     }
 

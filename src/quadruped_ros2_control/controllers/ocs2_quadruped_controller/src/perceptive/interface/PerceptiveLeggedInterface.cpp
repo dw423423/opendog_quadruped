@@ -17,6 +17,7 @@
 
 #include <grid_map_core/iterators/GridMapIterator.hpp>
 
+#include <algorithm>
 #include <array>
 #include <exception>
 #include <memory>
@@ -70,23 +71,57 @@ namespace ocs2::legged_robot
             return rectangle;
         }
 
-        void addDefaultNoStepRegions(convex_plane_decomposition::CgalPolygonWithHoles2d& polygon)
+        double clampRectangleErosionMargin(double xMin, double xMax, double yMin, double yMax, double margin)
+        {
+            const double halfX = 0.5 * (xMax - xMin);
+            const double halfY = 0.5 * (yMax - yMin);
+            return std::max(0.0, std::min({margin, 0.95 * halfX, 0.95 * halfY}));
+        }
+
+        convex_plane_decomposition::CgalPolygon2d makeErodedRectangle(double xMin, double xMax,
+                                                                      double yMin, double yMax,
+                                                                      double margin)
+        {
+            const double safeMargin = clampRectangleErosionMargin(xMin, xMax, yMin, yMax, margin);
+            return makeRectangle(xMin + safeMargin, xMax - safeMargin,
+                                 yMin + safeMargin, yMax - safeMargin);
+        }
+
+        void addDefaultNoStepRegions(convex_plane_decomposition::CgalPolygonWithHoles2d& polygon,
+                                     double groundErosionMargin)
         {
             for (const auto& region : kDefaultNoStepRegions)
             {
-                polygon.holes().push_back(makeRectangle(region.xMin - kNoStepSafetyMargin,
-                                                        region.xMax + kNoStepSafetyMargin,
-                                                        region.yMin - kNoStepSafetyMargin,
-                                                        region.yMax + kNoStepSafetyMargin));
+                polygon.holes().push_back(makeRectangle(region.xMin - groundErosionMargin,
+                                                        region.xMax + groundErosionMargin,
+                                                        region.yMin - groundErosionMargin,
+                                                        region.yMax + groundErosionMargin));
             }
         }
 
-        void addStairFootprintHoles(convex_plane_decomposition::CgalPolygonWithHoles2d& polygon)
+        void addStairFootprintHoles(convex_plane_decomposition::CgalPolygonWithHoles2d& polygon,
+                                    double groundErosionMargin)
         {
+            if (kGazeboStairSteps.empty())
+            {
+                return;
+            }
+
+            double xMin = kGazeboStairSteps.front().xMin;
+            double xMax = kGazeboStairSteps.front().xMax;
+            double yMin = kGazeboStairSteps.front().yMin;
+            double yMax = kGazeboStairSteps.front().yMax;
             for (const auto& step : kGazeboStairSteps)
             {
-                polygon.holes().push_back(makeRectangle(step.xMin, step.xMax, step.yMin, step.yMax));
+                xMin = std::min(xMin, step.xMin);
+                xMax = std::max(xMax, step.xMax);
+                yMin = std::min(yMin, step.yMin);
+                yMax = std::max(yMax, step.yMax);
             }
+            polygon.holes().push_back(makeRectangle(xMin - groundErosionMargin,
+                                                    xMax + groundErosionMargin,
+                                                    yMin - groundErosionMargin,
+                                                    yMax + groundErosionMargin));
         }
 
         convex_plane_decomposition::PlanarRegion makeHorizontalPlanarRegion(double xMin, double xMax,
@@ -157,10 +192,14 @@ namespace ocs2::legged_robot
         const std::string& taskFile, const std::string& urdfFile,
         const std::string& referenceFile, FixedFootholdRegionSettings fixedFootholdRegionSettings,
         FixedFootholdSequenceConfig fixedFootholdSequenceConfig,
+        StairFootholdRegionSettings stairFootholdRegionSettings,
+        scalar_t groundSteppableErosionMargin,
         bool useHardFrictionConeConstraint)
         : LeggedInterface(taskFile, urdfFile, referenceFile, useHardFrictionConeConstraint),
           fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings)),
-          fixedFootholdSequenceConfig_(std::move(fixedFootholdSequenceConfig))
+          fixedFootholdSequenceConfig_(std::move(fixedFootholdSequenceConfig)),
+          stairFootholdRegionSettings_(std::move(stairFootholdRegionSettings)),
+          groundSteppableErosionMargin_(std::max<scalar_t>(0.0, groundSteppableErosionMargin))
     {
     }
 
@@ -170,28 +209,27 @@ namespace ocs2::legged_robot
         planarTerrainPtr_ = std::make_shared<convex_plane_decomposition::PlanarTerrain>();
 
         double width{10.0}, height{10.0};
+        const double groundErosionMargin = clampRectangleErosionMargin(
+            -height / 2, +height / 2, -width / 2, +width / 2, groundSteppableErosionMargin_);
         convex_plane_decomposition::PlanarRegion plannerRegion;
         plannerRegion.transformPlaneToWorld.setIdentity();
-        plannerRegion.bbox2d = convex_plane_decomposition::CgalBbox2d(-height / 2, -width / 2, +height / 2, width / 2);
+        plannerRegion.bbox2d = convex_plane_decomposition::CgalBbox2d(
+            -height / 2 + groundErosionMargin,
+            -width / 2 + groundErosionMargin,
+            +height / 2 - groundErosionMargin,
+            +width / 2 - groundErosionMargin);
         convex_plane_decomposition::CgalPolygonWithHoles2d boundary;
-        boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(+height / 2, +width / 2));
-        boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(-height / 2, +width / 2));
-        boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(-height / 2, -width / 2));
-        boundary.outer_boundary().push_back(convex_plane_decomposition::CgalPoint2d(+height / 2, -width / 2));
-        addDefaultNoStepRegions(boundary);
-        addStairFootprintHoles(boundary);
+        boundary.outer_boundary() = makeErodedRectangle(
+            -height / 2, +height / 2, -width / 2, +width / 2, groundErosionMargin);
+        addDefaultNoStepRegions(boundary, groundErosionMargin);
+        addStairFootprintHoles(boundary, groundErosionMargin);
         plannerRegion.boundaryWithInset.boundary = boundary;
         convex_plane_decomposition::CgalPolygonWithHoles2d insets;
-        insets.outer_boundary().push_back(
-            convex_plane_decomposition::CgalPoint2d(+height / 2 - 0.01, +width / 2 - 0.01));
-        insets.outer_boundary().push_back(
-            convex_plane_decomposition::CgalPoint2d(-height / 2 + 0.01, +width / 2 - 0.01));
-        insets.outer_boundary().push_back(
-            convex_plane_decomposition::CgalPoint2d(-height / 2 + 0.01, -width / 2 + 0.01));
-        insets.outer_boundary().push_back(
-            convex_plane_decomposition::CgalPoint2d(+height / 2 - 0.01, -width / 2 + 0.01));
-        addDefaultNoStepRegions(insets);
-        addStairFootprintHoles(insets);
+        insets.outer_boundary() = makeErodedRectangle(
+            -height / 2, +height / 2, -width / 2, +width / 2,
+            groundErosionMargin + kTerrainInset);
+        addDefaultNoStepRegions(insets, groundErosionMargin + kTerrainInset);
+        addStairFootprintHoles(insets, groundErosionMargin + kTerrainInset);
         plannerRegion.boundaryWithInset.insets.push_back(insets);
         planarTerrainPtr_->planarRegions.push_back(plannerRegion);
         for (const auto& step : kGazeboStairSteps)
@@ -295,7 +333,8 @@ namespace ocs2::legged_robot
         auto convexRegionSelector =
             std::make_unique<ConvexRegionSelector>(centroidal_model_info_, planarTerrainPtr_, *eeKinematicsPtr,
                                                    numVertices_, fixedFootholdRegionSettings_,
-                                                   fixedFootholdSequenceConfig_);
+                                                   fixedFootholdSequenceConfig_,
+                                                   stairFootholdRegionSettings_);
 
         scalar_t comHeight = 0;
         loadData::loadCppDataType(referenceFile, "comHeight", comHeight);

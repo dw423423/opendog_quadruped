@@ -73,6 +73,21 @@ ocs2_quadruped_controller:
     lf_target_y: 0.12
     rf_target_y: -0.12
 
+    stair_foothold:
+      enable: false
+      step_x_start: 0.40
+      step_height: 0.15
+      step_depth: 0.35
+      step_width: 0.80
+      stair_y_center: 0.0
+      num_steps: 2
+      edge_margin_x: 0.04
+      edge_margin_y: 0.03
+      active_region_half_length_x: 0.10
+      active_region_half_length_y: 0.06
+      prefer_stair_top_when_inside_footprint: true
+      lock_region_during_swing: true
+
     fixed_foothold_regions:
       enable: false
       frame: "world"

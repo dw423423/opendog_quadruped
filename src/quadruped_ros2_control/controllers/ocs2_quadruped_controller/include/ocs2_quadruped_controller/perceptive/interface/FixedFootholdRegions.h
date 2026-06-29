@@ -55,6 +55,23 @@ namespace ocs2::legged_robot
         std::vector<FixedFootholdRegionSet> sets;
     };
 
+    struct StairFootholdRegionSettings
+    {
+        bool enable = true;
+        bool preferStairTopWhenInsideFootprint = true;
+        bool lockRegionDuringSwing = true;
+        size_t numSteps = 2;
+        scalar_t stepXStart = 0.40;
+        scalar_t stepDepth = 0.35;
+        scalar_t stepHeight = 0.15;
+        scalar_t stepWidth = 0.80;
+        scalar_t stairYCenter = 0.0;
+        scalar_t edgeMarginX = 0.04;
+        scalar_t edgeMarginY = 0.03;
+        scalar_t activeRegionHalfLengthX = 0.10;
+        scalar_t activeRegionHalfLengthY = 0.06;
+    };
+
     struct FixedFootholdRegionCheck
     {
         bool insideXY = false;
@@ -93,6 +110,11 @@ namespace ocs2::legged_robot
     }
 
     inline FixedFootholdSequenceConfig defaultFixedFootholdSequenceConfig()
+    {
+        return {};
+    }
+
+    inline StairFootholdRegionSettings defaultStairFootholdRegionSettings()
     {
         return {};
     }

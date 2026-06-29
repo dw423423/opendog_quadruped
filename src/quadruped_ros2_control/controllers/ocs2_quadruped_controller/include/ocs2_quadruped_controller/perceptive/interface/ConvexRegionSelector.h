@@ -26,7 +26,9 @@ namespace ocs2::legged_robot
                              FixedFootholdRegionSettings fixedFootholdRegionSettings =
                              defaultFixedFootholdRegionSettings(),
                              FixedFootholdSequenceConfig fixedFootholdSequenceConfig =
-                             defaultFixedFootholdSequenceConfig());
+                             defaultFixedFootholdSequenceConfig(),
+                             StairFootholdRegionSettings stairFootholdRegionSettings =
+                             defaultStairFootholdRegionSettings());
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                     TargetTrajectories& targetTrajectories);
@@ -112,6 +114,7 @@ namespace ocs2::legged_robot
 
         feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>> feetProjections_;
         feet_array_t<std::vector<convex_plane_decomposition::CgalPolygon2d>> convexPolygons_;
+        feet_array_t<std::vector<convex_plane_decomposition::PlanarRegion>> stairTopRegions_;
 
         feet_array_t<std::vector<vector3_t>> nominalFootholds_;
         feet_array_t<std::vector<scalar_t>> middleTimes_;
@@ -128,5 +131,6 @@ namespace ocs2::legged_robot
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
         FixedFootholdRegionSettings fixedFootholdRegionSettings_;
         FixedFootholdSequenceManager fixedFootholdSequenceManager_;
+        StairFootholdRegionSettings stairFootholdRegionSettings_;
     };
 } // namespace ocs2::legged_robot

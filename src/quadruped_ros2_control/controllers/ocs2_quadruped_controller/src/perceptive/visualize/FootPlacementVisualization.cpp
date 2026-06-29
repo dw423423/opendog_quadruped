@@ -72,9 +72,9 @@ namespace ocs2::legged_robot
             };
 
             constexpr std::array<Bounds, 3> noStepBounds = {
-                Bounds{-1.80, -1.60, -1.30, 1.30},
-                Bounds{0.85, 1.60, 0.70, 1.45},
-                Bounds{1.20, 1.50, -1.85, -0.40},
+                Bounds{-1.75, -1.65, -1.25, 1.25},
+                Bounds{0.90, 1.55, 0.75, 1.40},
+                Bounds{1.25, 1.45, -1.80, -0.45},
             };
             const auto bbox = hole.bbox();
             for (const auto& bounds : noStepBounds)
