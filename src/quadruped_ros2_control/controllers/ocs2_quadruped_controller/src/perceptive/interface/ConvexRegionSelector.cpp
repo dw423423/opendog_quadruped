@@ -75,6 +75,177 @@ namespace ocs2::legged_robot
             return stream.str();
         }
 
+        scalar_t signedPolygonArea(const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            if (polygon.size() < 3)
+            {
+                return 0.0;
+            }
+
+            scalar_t doubleArea = 0.0;
+            for (size_t i = 0; i < polygon.size(); ++i)
+            {
+                const auto a = polygon.vertex(static_cast<int>(i));
+                const auto b = polygon.vertex(static_cast<int>((i + 1) % polygon.size()));
+                doubleArea += a.x() * b.y() - b.x() * a.y();
+            }
+            return 0.5 * doubleArea;
+        }
+
+        bool polygonHasFiniteVertices(const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            for (size_t i = 0; i < polygon.size(); ++i)
+            {
+                const auto vertex = polygon.vertex(static_cast<int>(i));
+                if (!std::isfinite(vertex.x()) || !std::isfinite(vertex.y()))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        scalar_t minPolygonEdgeLength(const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            if (polygon.size() < 2)
+            {
+                return 0.0;
+            }
+
+            scalar_t minLength = std::numeric_limits<scalar_t>::infinity();
+            for (size_t i = 0; i < polygon.size(); ++i)
+            {
+                const auto a = polygon.vertex(static_cast<int>(i));
+                const auto b = polygon.vertex(static_cast<int>((i + 1) % polygon.size()));
+                const scalar_t dx = b.x() - a.x();
+                const scalar_t dy = b.y() - a.y();
+                minLength = std::min(minLength, std::sqrt(dx * dx + dy * dy));
+            }
+            return minLength;
+        }
+
+        bool polygonHasConsistentOrientation(const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            if (polygon.size() < 3)
+            {
+                return false;
+            }
+
+            int sign = 0;
+            constexpr scalar_t kCrossTolerance = 1e-10;
+            for (size_t i = 0; i < polygon.size(); ++i)
+            {
+                const auto a = polygon.vertex(static_cast<int>(i));
+                const auto b = polygon.vertex(static_cast<int>((i + 1) % polygon.size()));
+                const auto c = polygon.vertex(static_cast<int>((i + 2) % polygon.size()));
+                const scalar_t abx = b.x() - a.x();
+                const scalar_t aby = b.y() - a.y();
+                const scalar_t bcx = c.x() - b.x();
+                const scalar_t bcy = c.y() - b.y();
+                const scalar_t cross = abx * bcy - aby * bcx;
+                if (std::abs(cross) <= kCrossTolerance)
+                {
+                    continue;
+                }
+
+                const int currentSign = cross > 0.0 ? 1 : -1;
+                if (sign == 0)
+                {
+                    sign = currentSign;
+                }
+                else if (sign != currentSign)
+                {
+                    return false;
+                }
+            }
+            return sign != 0;
+        }
+
+        bool isPointInsideConvexPolygon(const convex_plane_decomposition::CgalPoint2d& point,
+                                        const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            if (polygon.size() < 3)
+            {
+                return false;
+            }
+
+            int sign = 0;
+            constexpr scalar_t kInsideTolerance = 1e-9;
+            for (size_t i = 0; i < polygon.size(); ++i)
+            {
+                const auto a = polygon.vertex(static_cast<int>(i));
+                const auto b = polygon.vertex(static_cast<int>((i + 1) % polygon.size()));
+                const scalar_t cross =
+                    (b.x() - a.x()) * (point.y() - a.y()) - (b.y() - a.y()) * (point.x() - a.x());
+                if (std::abs(cross) <= kInsideTolerance)
+                {
+                    continue;
+                }
+
+                const int currentSign = cross > 0.0 ? 1 : -1;
+                if (sign == 0)
+                {
+                    sign = currentSign;
+                }
+                else if (sign != currentSign)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        struct PolygonValidation
+        {
+            bool valid = false;
+            bool finite = false;
+            bool orientationConsistent = false;
+            scalar_t signedArea = 0.0;
+            scalar_t area = 0.0;
+            scalar_t minEdgeLength = 0.0;
+        };
+
+        PolygonValidation validateConvexPolygon(const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            constexpr scalar_t kMinPolygonArea = 1e-4;
+            constexpr scalar_t kMinEdgeLength = 1e-4;
+            PolygonValidation validation;
+            validation.signedArea = signedPolygonArea(polygon);
+            validation.area = std::abs(validation.signedArea);
+            validation.finite = polygonHasFiniteVertices(polygon);
+            validation.minEdgeLength = minPolygonEdgeLength(polygon);
+            validation.orientationConsistent = polygonHasConsistentOrientation(polygon);
+            validation.valid = polygon.size() >= 3 && validation.area > kMinPolygonArea &&
+                validation.finite && validation.minEdgeLength > kMinEdgeLength &&
+                validation.orientationConsistent;
+            return validation;
+        }
+
+        std::string bboxToString(const convex_plane_decomposition::CgalBbox2d& bbox)
+        {
+            std::ostringstream stream;
+            stream << std::fixed << std::setprecision(3)
+                << "x[" << bbox.xmin() << "," << bbox.xmax() << "]"
+                << ",y[" << bbox.ymin() << "," << bbox.ymax() << "]";
+            return stream.str();
+        }
+
+        std::string stairRawBoundsToString(const StairFootholdRegionSettings& settings, size_t stepIndex, size_t leg)
+        {
+            const scalar_t xMin = settings.stepXStart + static_cast<scalar_t>(stepIndex) * settings.stepDepth;
+            const scalar_t xMax = xMin + settings.stepDepth;
+            const scalar_t halfWidth = 0.5 * settings.stepWidth;
+            const bool leftLeg = leg == 0 || leg == 2;
+            const scalar_t laneYMin = leftLeg ? settings.stairYCenter : settings.stairYCenter - halfWidth;
+            const scalar_t laneYMax = leftLeg ? settings.stairYCenter + halfWidth : settings.stairYCenter;
+            std::ostringstream stream;
+            stream << std::fixed << std::setprecision(3)
+                << "x[" << xMin << "," << xMax << "]"
+                << ",y[" << laneYMin << "," << laneYMax << "]"
+                << ",z=" << static_cast<scalar_t>(stepIndex + 1) * settings.stepHeight;
+            return stream.str();
+        }
+
         bool shouldLogFootholdRegion(scalar_t initTime)
         {
             static scalar_t lastLogTime = -1.0;
@@ -350,46 +521,128 @@ namespace ocs2::legged_robot
                     {
                         vector3_t footPos = getNominalFoothold(leg, standMiddleTime, initState, targetTrajectories);
                         auto penaltyFunction = [](const vector3_t& /*projectedPoint*/) { return 0.0; };
-                        auto originalProjection = getBestPlanarRegionAtPositionInWorld(
-                            footPos, planarTerrain_.planarRegions, penaltyFunction);
-                        if (originalProjection.regionPtr == nullptr)
-                        {
-                            std::cerr << std::fixed << std::setprecision(3)
-                                << "[FootholdRegion] leg=" << leg
-                                << " phase_start=" << standStartTime
-                                << " phase_end=" << standFinalTime
-                                << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
-                                << " has no planar region projection; skipping region selection"
-                                << std::endl;
-                            continue;
-                        }
                         const bool useFixedRegion = fixedFootholdRegionsEnabled();
-                        nudgeProjectionTowardInterior(footPos, originalProjection);
-                        auto projection = originalProjection;
                         const auto& fixedRegion = getFixedFootholdRegion(leg);
                         std::string selectedRegion = "perceptive";
                         std::optional<size_t> candidateStep;
                         bool stairTopFallback = false;
                         bool selectedStairTop = false;
-                        if (!useFixedRegion && stairFootholdRegionSettings_.enable &&
-                            stairFootholdRegionSettings_.preferStairTopWhenInsideFootprint)
+                        convex_plane_decomposition::PlanarTerrainProjection projection;
+                        convex_plane_decomposition::PlanarTerrainProjection originalProjection;
+                        convex_plane_decomposition::CgalPolygon2d convexRegion;
+
+                        if (useFixedRegion)
                         {
-                            candidateStep = findStairStepByXY(stairFootholdRegionSettings_, leg,
-                                                              footPos.x(), footPos.y());
-                            if (candidateStep.has_value())
+                            const vector3_t targetCenter(
+                                0.5 * (fixedRegion.xMin + fixedRegion.xMax),
+                                0.5 * (fixedRegion.yMin + fixedRegion.yMax),
+                                fixedRegion.z);
+                            projection = getBestPlanarRegionAtPositionInWorld(
+                                targetCenter, planarTerrain_.planarRegions, penaltyFunction);
+                            if (projection.regionPtr == nullptr)
+                            {
+                                std::cerr << std::fixed << std::setprecision(3)
+                                    << "[FootholdRegion][WARN] leg=" << legName(leg)
+                                    << " leg_index=" << leg
+                                    << " phase_index=" << i
+                                    << " phase_start=" << standStartTime
+                                    << " phase_end=" << standFinalTime
+                                    << " fixed_region=true"
+                                    << " target_center=(" << targetCenter.x() << ","
+                                    << targetCenter.y() << "," << targetCenter.z() << ")"
+                                    << " has no planar region projection; skipping fixed region constraint"
+                                    << std::endl;
+                                continue;
+                            }
+                            const vector3_t targetCenterInTerrain =
+                                projection.regionPtr->transformPlaneToWorld.inverse() * targetCenter;
+                            projection.positionInTerrainFrame = convex_plane_decomposition::CgalPoint2d(
+                                targetCenterInTerrain.x(), targetCenterInTerrain.y());
+                            projection.positionInWorld = targetCenter;
+                            convexRegion = makeFixedTargetRegion(fixedRegion, numVertices_);
+                            selectedRegion = fixedFootholdRegionToString(leg);
+                            if (logFootholdRegion && fixedFootholdSequenceManager_.isEnabled())
+                            {
+                                std::cerr << std::fixed << std::setprecision(3)
+                                    << "[FootholdSequence] selector active_set="
+                                    << fixedFootholdSequenceManager_.getActiveSetIndex()
+                                    << " set_name=" << fixedFootholdSequenceManager_.getActiveSetName()
+                                    << " leg=" << leg
+                                    << " name=" << fixedRegion.name
+                                    << " region=x[" << fixedRegion.xMin << "," << fixedRegion.xMax << "]"
+                                    << ",y[" << fixedRegion.yMin << "," << fixedRegion.yMax << "]"
+                                    << ",z=" << fixedRegion.z
+                                    << std::endl;
+                            }
+                        }
+                        else
+                        {
+                            originalProjection = getBestPlanarRegionAtPositionInWorld(
+                                footPos, planarTerrain_.planarRegions, penaltyFunction);
+                            if (originalProjection.regionPtr == nullptr)
+                            {
+                                std::cerr << std::fixed << std::setprecision(3)
+                                    << "[FootholdRegion] leg=" << leg
+                                    << " phase_start=" << standStartTime
+                                    << " phase_end=" << standFinalTime
+                                    << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
+                                    << " has no planar region projection; skipping region selection"
+                                    << std::endl;
+                                continue;
+                            }
+                            nudgeProjectionTowardInterior(footPos, originalProjection);
+                            projection = originalProjection;
+                            if (stairFootholdRegionSettings_.enable &&
+                                stairFootholdRegionSettings_.preferStairTopWhenInsideFootprint)
+                            {
+                                candidateStep = findStairStepByXY(stairFootholdRegionSettings_, leg,
+                                                                  footPos.x(), footPos.y());
+                                if (candidateStep.has_value())
+                                {
+                                    auto& stairTopRegion = stairTopRegions_[leg][i];
+                                    if (makeStairTopRegion(stairFootholdRegionSettings_, candidateStep.value(), leg,
+                                                           stairFootholdRegionSettings_.edgeMarginX,
+                                                           stairFootholdRegionSettings_.edgeMarginY,
+                                                           stairTopRegion))
+                                    {
+                                        projection = projectToStairTopRegion(footPos, stairTopRegion);
+                                        selectedRegion = "stair_top";
+                                        selectedStairTop = true;
+                                    }
+                                    else
+                                    {
+                                        stairTopFallback = true;
+                                        if (logFootholdRegion)
+                                        {
+                                            std::cerr << std::fixed << std::setprecision(3)
+                                                << "[FootholdRegionSelect][WARN] leg=" << legName(leg)
+                                                << " candidate_step=" << (candidateStep.value() + 1)
+                                                << " stair_top_failed=true fallback=original"
+                                                << " reason=shrunken_region_invalid"
+                                                << std::endl;
+                                        }
+                                    }
+                                }
+                            }
+
+                            convexRegion = growConvexRegion(projection, numVertices_);
+                            if (selectedStairTop && convexRegion.size() < 3)
                             {
                                 auto& stairTopRegion = stairTopRegions_[leg][i];
                                 if (makeStairTopRegion(stairFootholdRegionSettings_, candidateStep.value(), leg,
-                                                       stairFootholdRegionSettings_.edgeMarginX,
-                                                       stairFootholdRegionSettings_.edgeMarginY,
+                                                       0.5 * stairFootholdRegionSettings_.edgeMarginX,
+                                                       0.5 * stairFootholdRegionSettings_.edgeMarginY,
                                                        stairTopRegion))
                                 {
                                     projection = projectToStairTopRegion(footPos, stairTopRegion);
-                                    selectedRegion = "stair_top";
-                                    selectedStairTop = true;
+                                    convexRegion = growConvexRegion(projection, numVertices_);
                                 }
-                                else
+                                if (convexRegion.size() < 3)
                                 {
+                                    projection = originalProjection;
+                                    convexRegion = growConvexRegion(projection, numVertices_);
+                                    selectedRegion = "perceptive";
+                                    selectedStairTop = false;
                                     stairTopFallback = true;
                                     if (logFootholdRegion)
                                     {
@@ -397,76 +650,45 @@ namespace ocs2::legged_robot
                                             << "[FootholdRegionSelect][WARN] leg=" << legName(leg)
                                             << " candidate_step=" << (candidateStep.value() + 1)
                                             << " stair_top_failed=true fallback=original"
-                                            << " reason=shrunken_region_invalid"
+                                            << " reason=empty_active_region"
                                             << std::endl;
                                     }
                                 }
                             }
                         }
 
-                        auto convexRegion = growConvexRegion(projection, numVertices_);
-                        if (selectedStairTop && convexRegion.size() < 3)
+                        const auto polygonValidation = validateConvexPolygon(convexRegion);
+                        const bool projectionInsidePolygon =
+                            projection.regionPtr != nullptr &&
+                            isPointInsideConvexPolygon(projection.positionInTerrainFrame, convexRegion);
+                        if ((!polygonValidation.valid || !projectionInsidePolygon) && logFootholdRegion)
                         {
-                            auto& stairTopRegion = stairTopRegions_[leg][i];
-                            if (makeStairTopRegion(stairFootholdRegionSettings_, candidateStep.value(), leg,
-                                                   0.5 * stairFootholdRegionSettings_.edgeMarginX,
-                                                   0.5 * stairFootholdRegionSettings_.edgeMarginY,
-                                                   stairTopRegion))
-                            {
-                                projection = projectToStairTopRegion(footPos, stairTopRegion);
-                                convexRegion = growConvexRegion(projection, numVertices_);
-                            }
-                            if (convexRegion.size() < 3)
-                            {
-                                projection = originalProjection;
-                                convexRegion = growConvexRegion(projection, numVertices_);
-                                selectedRegion = "perceptive";
-                                selectedStairTop = false;
-                                stairTopFallback = true;
-                                if (logFootholdRegion)
-                                {
-                                    std::cerr << std::fixed << std::setprecision(3)
-                                        << "[FootholdRegionSelect][WARN] leg=" << legName(leg)
-                                        << " candidate_step=" << (candidateStep.value() + 1)
-                                        << " stair_top_failed=true fallback=original"
-                                        << " reason=empty_active_region"
-                                        << std::endl;
-                                }
-                            }
-                        }
-                        {
-                            if (useFixedRegion)
-                            {
-                                const vector3_t targetCenter(
-                                    0.5 * (fixedRegion.xMin + fixedRegion.xMax),
-                                    0.5 * (fixedRegion.yMin + fixedRegion.yMax),
-                                    fixedRegion.z);
-                                projection = getBestPlanarRegionAtPositionInWorld(
-                                    targetCenter, planarTerrain_.planarRegions, penaltyFunction);
-                                if (projection.regionPtr != nullptr)
-                                {
-                                    const vector3_t targetCenterInTerrain =
-                                        projection.regionPtr->transformPlaneToWorld.inverse() * targetCenter;
-                                    projection.positionInTerrainFrame = convex_plane_decomposition::CgalPoint2d(
-                                        targetCenterInTerrain.x(), targetCenterInTerrain.y());
-                                    projection.positionInWorld = targetCenter;
-                                }
-                                convexRegion = makeFixedTargetRegion(fixedRegion, numVertices_);
-                                selectedRegion = fixedFootholdRegionToString(leg);
-                                if (logFootholdRegion && fixedFootholdSequenceManager_.isEnabled())
-                                {
-                                    std::cerr << std::fixed << std::setprecision(3)
-                                        << "[FootholdSequence] selector active_set="
-                                        << fixedFootholdSequenceManager_.getActiveSetIndex()
-                                        << " set_name=" << fixedFootholdSequenceManager_.getActiveSetName()
-                                        << " leg=" << leg
-                                        << " name=" << fixedRegion.name
-                                        << " region=x[" << fixedRegion.xMin << "," << fixedRegion.xMax << "]"
-                                        << ",y[" << fixedRegion.yMin << "," << fixedRegion.yMax << "]"
-                                        << ",z=" << fixedRegion.z
-                                        << std::endl;
-                                }
-                            }
+                            std::cerr << std::fixed << std::setprecision(3)
+                                << "[FootholdRegionValidate][WARN] leg=" << legName(leg)
+                                << " leg_index=" << leg
+                                << " phase_index=" << i
+                                << " phase_start=" << standStartTime
+                                << " phase_end=" << standFinalTime
+                                << " phase_mid=" << standMiddleTime
+                                << " selected_region=" << selectedRegion
+                                << " polygon_valid=" << (polygonValidation.valid ? "true" : "false")
+                                << " vertex_count=" << convexRegion.size()
+                                << " area=" << polygonValidation.area
+                                << " signed_area=" << polygonValidation.signedArea
+                                << " finite=" << (polygonValidation.finite ? "true" : "false")
+                                << " min_edge_length=" << polygonValidation.minEdgeLength
+                                << " orientation_consistent="
+                                << (polygonValidation.orientationConsistent ? "true" : "false")
+                                << " projection_inside_polygon="
+                                << (projectionInsidePolygon ? "true" : "false")
+                                << " projection_terrain=(" << projection.positionInTerrainFrame.x()
+                                << "," << projection.positionInTerrainFrame.y() << ")"
+                                << " projection_world=(" << projection.positionInWorld.x()
+                                << "," << projection.positionInWorld.y()
+                                << "," << projection.positionInWorld.z() << ")"
+                                << " vertices=" << polygonToString(convexRegion)
+                                << " note=no_fallback_no_polygon_replacement"
+                                << std::endl;
                         }
 
                         feetProjections_[leg][i] = projection;
@@ -477,6 +699,11 @@ namespace ocs2::legged_robot
                         {
                             std::cerr << std::fixed << std::setprecision(3)
                                 << "[FootholdRegionSelect] leg=" << legName(leg)
+                                << " leg_index=" << leg
+                                << " phase_index=" << i
+                                << " phase_start=" << standStartTime
+                                << " phase_end=" << standFinalTime
+                                << " phase_mid=" << standMiddleTime
                                 << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
                                 << " inside_step_footprint=" << (candidateStep.has_value() ? "true" : "false")
                                 << " candidate_step="
@@ -491,14 +718,45 @@ namespace ocs2::legged_robot
                                 << " projection=(" << projection.positionInWorld.x() << ","
                                 << projection.positionInWorld.y() << ","
                                 << projection.positionInWorld.z() << ")"
+                                << " projection_terrain=(" << projection.positionInTerrainFrame.x() << ","
+                                << projection.positionInTerrainFrame.y() << ")"
+                                << " polygon_vertices=" << convexRegion.size()
+                                << " polygon_area=" << polygonValidation.area
+                                << " projection_inside_polygon="
+                                << (projectionInsidePolygon ? "true" : "false")
                                 << " region_z="
                                 << (projection.regionPtr != nullptr
                                         ? projection.regionPtr->transformPlaneToWorld.translation().z()
                                         : 0.0)
-                                << " fallback=" << (stairTopFallback ? "true" : "false")
-                                << std::endl;
+                                << " fallback=" << (stairTopFallback ? "true" : "false");
+                            if (candidateStep.has_value())
+                            {
+                                std::cerr
+                                    << " stair_raw_region="
+                                    << stairRawBoundsToString(stairFootholdRegionSettings_, candidateStep.value(), leg);
+                            }
+                            if (selectedStairTop)
+                            {
+                                std::cerr
+                                    << " stair_edge_margin_x=" << stairFootholdRegionSettings_.edgeMarginX
+                                    << " stair_edge_margin_y=" << stairFootholdRegionSettings_.edgeMarginY
+                                    << " stair_margin_region=" << bboxToString(stairTopRegions_[leg][i].bbox2d)
+                                    << " stair_margin_note=region_construction_not_grow_shrink";
+                            }
+                            if (useFixedRegion)
+                            {
+                                std::cerr
+                                    << " fixed_frame="
+                                    << (fixedFootholdSequenceManager_.isEnabled()
+                                            ? fixedFootholdSequenceManager_.getConfig().frame
+                                            : fixedFootholdRegionSettings_.frame)
+                                    << " fixed_vertices_world=" << polygonToString(convexRegion)
+                                    << " fixed_note=direct_polygon_source_no_ordinary_or_stair_selection";
+                            }
+                            std::cerr << std::endl;
                             std::cerr << std::fixed << std::setprecision(3)
                                 << "[FootholdRegion] leg=" << leg
+                                << " phase_index=" << i
                                 << " fixed_enabled=" << static_cast<int>(fixedFootholdRegionsEnabled())
                                 << " sequence_enabled="
                                 << static_cast<int>(fixedFootholdSequenceManager_.isEnabled())
@@ -508,10 +766,14 @@ namespace ocs2::legged_robot
                                 << " selected_region=" << selectedRegion
                                 << " phase_start=" << standStartTime
                                 << " phase_end=" << standFinalTime
+                                << " phase_mid=" << standMiddleTime
                                 << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
                                 << " projection=(" << projection.positionInWorld.x() << ","
                                 << projection.positionInWorld.y() << ","
                                 << projection.positionInWorld.z() << ")"
+                                << " projection_terrain=(" << projection.positionInTerrainFrame.x() << ","
+                                << projection.positionInTerrainFrame.y() << ")"
+                                << " polygon_area=" << polygonValidation.area
                                 << " vertices=" << polygonToString(convexRegion);
                             if (fixedFootholdRegionsEnabled())
                             {

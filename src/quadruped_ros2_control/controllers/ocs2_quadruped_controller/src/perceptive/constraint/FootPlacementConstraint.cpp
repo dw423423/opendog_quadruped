@@ -11,6 +11,7 @@
 #include <array>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 
 namespace ocs2::legged_robot
 {
@@ -20,6 +21,28 @@ namespace ocs2::legged_robot
         const auto& selectLegKinematics(const VectorLike& values, size_t leg)
         {
             return values.size() == 1 ? values.front() : values.at(leg);
+        }
+
+        const char* legName(size_t leg)
+        {
+            constexpr std::array<const char*, 4> names = {"FL", "FR", "RL", "RR"};
+            return leg < names.size() ? names[leg] : "UNKNOWN";
+        }
+
+        std::string vectorToString(const vector_t& values)
+        {
+            std::ostringstream stream;
+            stream << std::fixed << std::setprecision(6) << "[";
+            for (Eigen::Index i = 0; i < values.size(); ++i)
+            {
+                if (i > 0)
+                {
+                    stream << ", ";
+                }
+                stream << values(i);
+            }
+            stream << "]";
+            return stream.str();
         }
     }
 
@@ -66,7 +89,7 @@ namespace ocs2::legged_robot
         return active;
     }
 
-    vector_t FootPlacementConstraint::getValue(scalar_t /*time*/, const vector_t& state,
+    vector_t FootPlacementConstraint::getValue(scalar_t time, const vector_t& state,
                                                const PreComputation& preComp) const
     {
         static std::array<bool, 4> checkedPrecomputationType{};
@@ -87,7 +110,50 @@ namespace ocs2::legged_robot
         }
         const auto param = perceptivePreComp.getFootPlacementConParameters()[contactPointIndex_];
         const auto positions = endEffectorKinematicsPtr_->getPosition(state);
-        return param.a * selectLegKinematics(positions, contactPointIndex_) + param.b;
+        const auto footPosition = selectLegKinematics(positions, contactPointIndex_);
+        const vector_t values = param.a * footPosition + param.b;
+        const scalar_t minMargin = values.size() > 0 ? values.minCoeff() : 0.0;
+        const bool insideByOcs2Convention = values.size() > 0 && minMargin >= -1e-5;
+
+        static std::array<scalar_t, 4> lastObservationLogTime = {-1.0, -1.0, -1.0, -1.0};
+        static std::array<scalar_t, 4> lastViolationLogTime = {-1.0, -1.0, -1.0, -1.0};
+        if (contactPointIndex_ < lastObservationLogTime.size() &&
+            (lastObservationLogTime[contactPointIndex_] < 0.0 ||
+                time - lastObservationLogTime[contactPointIndex_] > 0.25))
+        {
+            lastObservationLogTime[contactPointIndex_] = time;
+            std::cerr << std::fixed << std::setprecision(3)
+                << "[FootPlacementConstraint] leg=" << legName(contactPointIndex_)
+                << " leg_index=" << contactPointIndex_
+                << " time=" << time
+                << " ocs2_soft_constraint_convention=h>=0"
+                << " foot_position=(" << footPosition.x() << ","
+                << footPosition.y() << "," << footPosition.z() << ")"
+                << " constraint_values=" << vectorToString(values)
+                << " minimum_constraint_margin=" << minMargin
+                << " inside=" << (insideByOcs2Convention ? "true" : "false")
+                << std::endl;
+        }
+        if (!insideByOcs2Convention && contactPointIndex_ < lastViolationLogTime.size() &&
+            (lastViolationLogTime[contactPointIndex_] < 0.0 ||
+                time - lastViolationLogTime[contactPointIndex_] > 0.25))
+        {
+            lastViolationLogTime[contactPointIndex_] = time;
+            std::cerr << std::fixed << std::setprecision(3)
+                << "[FootPlacementConstraint][WARN] leg=" << legName(contactPointIndex_)
+                << " leg_index=" << contactPointIndex_
+                << " time=" << time
+                << " violation=true"
+                << " ocs2_soft_constraint_convention=h>=0"
+                << " foot_position=(" << footPosition.x() << ","
+                << footPosition.y() << "," << footPosition.z() << ")"
+                << " constraint_values=" << vectorToString(values)
+                << " minimum_constraint_margin=" << minMargin
+                << " violation_amount=" << -minMargin
+                << std::endl;
+        }
+
+        return values;
     }
 
     VectorFunctionLinearApproximation FootPlacementConstraint::getLinearApproximation(
