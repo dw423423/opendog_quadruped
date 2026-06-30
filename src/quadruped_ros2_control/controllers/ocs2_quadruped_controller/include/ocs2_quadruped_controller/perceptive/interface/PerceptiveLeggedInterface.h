@@ -23,6 +23,8 @@ namespace ocs2::legged_robot
                                   defaultFixedFootholdSequenceConfig(),
                                   StairFootholdRegionSettings stairFootholdRegionSettings =
                                   defaultStairFootholdRegionSettings(),
+                                  PerceptiveFootholdSettings perceptiveFootholdSettings =
+                                  defaultPerceptiveFootholdSettings(),
                                   scalar_t groundSteppableErosionMargin = 0.0,
                                   bool useHardFrictionConeConstraint = false);
 
@@ -70,6 +72,7 @@ namespace ocs2::legged_robot
         FixedFootholdRegionSettings fixedFootholdRegionSettings_;
         FixedFootholdSequenceConfig fixedFootholdSequenceConfig_;
         StairFootholdRegionSettings stairFootholdRegionSettings_;
+        PerceptiveFootholdSettings perceptiveFootholdSettings_;
         scalar_t groundSteppableErosionMargin_ = 0.0;
     };
 } // namespace ocs2::legged_robot

@@ -193,12 +193,14 @@ namespace ocs2::legged_robot
         const std::string& referenceFile, FixedFootholdRegionSettings fixedFootholdRegionSettings,
         FixedFootholdSequenceConfig fixedFootholdSequenceConfig,
         StairFootholdRegionSettings stairFootholdRegionSettings,
+        PerceptiveFootholdSettings perceptiveFootholdSettings,
         scalar_t groundSteppableErosionMargin,
         bool useHardFrictionConeConstraint)
         : LeggedInterface(taskFile, urdfFile, referenceFile, useHardFrictionConeConstraint),
           fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings)),
           fixedFootholdSequenceConfig_(std::move(fixedFootholdSequenceConfig)),
           stairFootholdRegionSettings_(std::move(stairFootholdRegionSettings)),
+          perceptiveFootholdSettings_(std::move(perceptiveFootholdSettings)),
           groundSteppableErosionMargin_(std::max<scalar_t>(0.0, groundSteppableErosionMargin))
     {
     }
@@ -334,7 +336,8 @@ namespace ocs2::legged_robot
             std::make_unique<ConvexRegionSelector>(centroidal_model_info_, planarTerrainPtr_, *eeKinematicsPtr,
                                                    numVertices_, fixedFootholdRegionSettings_,
                                                    fixedFootholdSequenceConfig_,
-                                                   stairFootholdRegionSettings_);
+                                                   stairFootholdRegionSettings_,
+                                                   perceptiveFootholdSettings_);
 
         scalar_t comHeight = 0;
         loadData::loadCppDataType(referenceFile, "comHeight", comHeight);

@@ -55,6 +55,7 @@ namespace ocs2::legged_robot
         const std::string package_share_directory = ament_index_cpp::get_package_share_directory(robot_pkg_);
         fixed_foothold_region_settings_ = loadFixedFootholdRegionSettings();
         stair_foothold_region_settings_ = loadStairFootholdRegionSettings();
+        perceptive_foothold_settings_ = loadPerceptiveFootholdSettings();
         fixed_foothold_sequence_config_ =
             loadFixedFootholdSequenceConfig(package_share_directory + "/config/gazebo.yaml");
         foothold_sequence_advance_sub_ = node_->create_subscription<std_msgs::msg::Empty>(
@@ -242,7 +243,8 @@ namespace ocs2::legged_robot
         {
             legged_interface_ = std::make_unique<PerceptiveLeggedInterface>(
                 task_file_, urdf_file_, reference_file_, fixed_foothold_region_settings_,
-                fixed_foothold_sequence_config_, stair_foothold_region_settings_);
+                fixed_foothold_sequence_config_, stair_foothold_region_settings_,
+                perceptive_foothold_settings_);
             RCLCPP_INFO(node_->get_logger(),
                         "[CtrlComponent] enable_perceptive=true, created PerceptiveLeggedInterface");
         }
@@ -413,6 +415,64 @@ namespace ocs2::legged_robot
                     settings.stepHeight, settings.stepWidth, settings.stairYCenter,
                     settings.edgeMarginX, settings.edgeMarginY,
                     boolString(settings.lockRegionDuringSwing));
+        return settings;
+    }
+
+    PerceptiveFootholdSettings CtrlComponent::loadPerceptiveFootholdSettings()
+    {
+        PerceptiveFootholdSettings settings = defaultPerceptiveFootholdSettings();
+
+        auto getBoolParam = [this](const std::string& name, bool defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_bool();
+        };
+
+        auto getDoubleParam = [this](const std::string& name, double defaultValue)
+        {
+            if (!node_->has_parameter(name))
+            {
+                node_->declare_parameter(name, defaultValue);
+            }
+            return node_->get_parameter(name).as_double();
+        };
+
+        settings.projectionCandidateSearchEnable =
+            getBoolParam("perceptive_foothold.projection_candidate_search_enable",
+                         settings.projectionCandidateSearchEnable);
+        settings.distanceWeightX = getDoubleParam("perceptive_foothold.distance_weight_x",
+                                                  settings.distanceWeightX);
+        settings.distanceWeightY = getDoubleParam("perceptive_foothold.distance_weight_y",
+                                                  settings.distanceWeightY);
+        settings.distanceWeightZ = getDoubleParam("perceptive_foothold.distance_weight_z",
+                                                  settings.distanceWeightZ);
+        settings.maxReachSoft = getDoubleParam("perceptive_foothold.max_reach_soft",
+                                               settings.maxReachSoft);
+        settings.maxReachHard = getDoubleParam("perceptive_foothold.max_reach_hard",
+                                               settings.maxReachHard);
+        settings.reachPenaltyWeight = getDoubleParam("perceptive_foothold.reach_penalty_weight",
+                                                     settings.reachPenaltyWeight);
+        settings.minLeftFootY = getDoubleParam("perceptive_foothold.min_left_foot_y",
+                                               settings.minLeftFootY);
+        settings.maxRightFootY = getDoubleParam("perceptive_foothold.max_right_foot_y",
+                                                settings.maxRightFootY);
+        settings.crossBodyPenaltyWeight = getDoubleParam("perceptive_foothold.cross_body_penalty_weight",
+                                                         settings.crossBodyPenaltyWeight);
+        settings.printCandidateDebug = getBoolParam("perceptive_foothold.print_candidate_debug",
+                                                    settings.printCandidateDebug);
+
+        RCLCPP_INFO(node_->get_logger(),
+                    "[PerceptiveFoothold] candidate_search=%s distance_weights=(%.3f,%.3f,%.3f) "
+                    "reach_soft=%.3f reach_hard=%.3f reach_weight=%.3f "
+                    "left_min_y=%.3f right_max_y=%.3f cross_weight=%.3f print_candidates=%s",
+                    boolString(settings.projectionCandidateSearchEnable),
+                    settings.distanceWeightX, settings.distanceWeightY, settings.distanceWeightZ,
+                    settings.maxReachSoft, settings.maxReachHard, settings.reachPenaltyWeight,
+                    settings.minLeftFootY, settings.maxRightFootY,
+                    settings.crossBodyPenaltyWeight, boolString(settings.printCandidateDebug));
         return settings;
     }
 

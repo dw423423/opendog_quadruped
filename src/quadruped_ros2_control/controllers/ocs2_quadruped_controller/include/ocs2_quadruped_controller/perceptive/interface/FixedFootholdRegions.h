@@ -72,6 +72,21 @@ namespace ocs2::legged_robot
         scalar_t activeRegionHalfLengthY = 0.06;
     };
 
+    struct PerceptiveFootholdSettings
+    {
+        bool projectionCandidateSearchEnable = true;
+        scalar_t distanceWeightX = 1.0;
+        scalar_t distanceWeightY = 1.0;
+        scalar_t distanceWeightZ = 1.0;
+        scalar_t maxReachSoft = 0.45;
+        scalar_t maxReachHard = 0.60;
+        scalar_t reachPenaltyWeight = 10.0;
+        scalar_t minLeftFootY = 0.05;
+        scalar_t maxRightFootY = -0.05;
+        scalar_t crossBodyPenaltyWeight = 20.0;
+        bool printCandidateDebug = false;
+    };
+
     struct FixedFootholdRegionCheck
     {
         bool insideXY = false;
@@ -115,6 +130,11 @@ namespace ocs2::legged_robot
     }
 
     inline StairFootholdRegionSettings defaultStairFootholdRegionSettings()
+    {
+        return {};
+    }
+
+    inline PerceptiveFootholdSettings defaultPerceptiveFootholdSettings()
     {
         return {};
     }

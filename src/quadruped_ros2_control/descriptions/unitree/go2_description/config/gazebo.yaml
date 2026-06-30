@@ -88,6 +88,19 @@ ocs2_quadruped_controller:
       prefer_stair_top_when_inside_footprint: true
       lock_region_during_swing: true
 
+    perceptive_foothold:
+      projection_candidate_search_enable: true
+      distance_weight_x: 1.0
+      distance_weight_y: 1.0
+      distance_weight_z: 1.0
+      max_reach_soft: 0.45
+      max_reach_hard: 0.60
+      reach_penalty_weight: 10.0
+      min_left_foot_y: 0.05
+      max_right_foot_y: -0.05
+      cross_body_penalty_weight: 20.0
+      print_candidate_debug: false
+
     fixed_foothold_regions:
       enable: false
       frame: "world"

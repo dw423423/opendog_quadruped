@@ -70,11 +70,13 @@ namespace ocs2::legged_robot
         FixedFootholdRegionSettings loadFixedFootholdRegionSettings();
         FixedFootholdSequenceConfig loadFixedFootholdSequenceConfig(const std::string& config_file);
         StairFootholdRegionSettings loadStairFootholdRegionSettings();
+        PerceptiveFootholdSettings loadPerceptiveFootholdSettings();
 
         bool enable_perceptive_ = false;
         FixedFootholdRegionSettings fixed_foothold_region_settings_;
         FixedFootholdSequenceConfig fixed_foothold_sequence_config_;
         StairFootholdRegionSettings stair_foothold_region_settings_;
+        PerceptiveFootholdSettings perceptive_foothold_settings_;
         CtrlInterfaces& ctrl_interfaces_;
         std::unique_ptr<StateEstimateBase> estimator_;
         std::unique_ptr<CentroidalModelRbdConversions> rbd_conversions_;

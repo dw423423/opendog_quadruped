@@ -28,7 +28,9 @@ namespace ocs2::legged_robot
                              FixedFootholdSequenceConfig fixedFootholdSequenceConfig =
                              defaultFixedFootholdSequenceConfig(),
                              StairFootholdRegionSettings stairFootholdRegionSettings =
-                             defaultStairFootholdRegionSettings());
+                             defaultStairFootholdRegionSettings(),
+                             PerceptiveFootholdSettings perceptiveFootholdSettings =
+                             defaultPerceptiveFootholdSettings());
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                     TargetTrajectories& targetTrajectories);
@@ -132,5 +134,6 @@ namespace ocs2::legged_robot
         FixedFootholdRegionSettings fixedFootholdRegionSettings_;
         FixedFootholdSequenceManager fixedFootholdSequenceManager_;
         StairFootholdRegionSettings stairFootholdRegionSettings_;
+        PerceptiveFootholdSettings perceptiveFootholdSettings_;
     };
 } // namespace ocs2::legged_robot

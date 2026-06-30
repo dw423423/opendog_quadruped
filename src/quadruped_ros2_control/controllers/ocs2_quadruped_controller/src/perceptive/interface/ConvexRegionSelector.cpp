@@ -360,6 +360,196 @@ namespace ocs2::legged_robot
             return projection;
         }
 
+        struct KinematicPenaltyResult
+        {
+            scalar_t penalty = 0.0;
+            scalar_t reach = 0.0;
+            bool crossesBody = false;
+            bool hardReachExceeded = false;
+            vector3_t candidateInBase = vector3_t::Zero();
+        };
+
+        struct FootholdProjectionCandidate
+        {
+            bool valid = false;
+            std::string invalidReason;
+            std::string regionType;
+            int regionIndex = -1;
+            int stairStepIndex = -1;
+            std::string stairLane = "none";
+            vector3_t nominalWorld = vector3_t::Zero();
+            convex_plane_decomposition::PlanarTerrainProjection projection;
+            convex_plane_decomposition::PlanarRegion stairRegion;
+            scalar_t distanceCost = 0.0;
+            scalar_t kinematicPenalty = 0.0;
+            scalar_t totalCost = std::numeric_limits<scalar_t>::infinity();
+            scalar_t reach = 0.0;
+            bool crossesBody = false;
+            bool hardReachExceeded = false;
+            vector3_t candidateInBase = vector3_t::Zero();
+        };
+
+        vector3_t transformWorldToBaseYawOnly(const vector3_t& pointWorld, const vector_t& state,
+                                              const CentroidalModelInfo& info)
+        {
+            const auto basePose = centroidal_model::getBasePose(state, info);
+            const vector3_t basePosition = basePose.head(3);
+            const scalar_t yaw = basePose(3);
+            const scalar_t c = std::cos(yaw);
+            const scalar_t s = std::sin(yaw);
+            const vector3_t delta = pointWorld - basePosition;
+            return (vector3_t() << c * delta.x() + s * delta.y(),
+                    -s * delta.x() + c * delta.y(),
+                    delta.z()).finished();
+        }
+
+        KinematicPenaltyResult computeKinematicPenalty(size_t leg, const vector3_t& candidateWorld,
+                                                       const vector_t& state, const CentroidalModelInfo& info,
+                                                       const PerceptiveFootholdSettings& settings)
+        {
+            KinematicPenaltyResult result;
+            result.candidateInBase = transformWorldToBaseYawOnly(candidateWorld, state, info);
+            result.reach = result.candidateInBase.norm();
+            if (result.reach > settings.maxReachSoft)
+            {
+                const scalar_t excess = result.reach - settings.maxReachSoft;
+                result.penalty += settings.reachPenaltyWeight * excess * excess;
+            }
+            result.hardReachExceeded = result.reach > settings.maxReachHard;
+
+            if (isLeftLeg(leg))
+            {
+                if (result.candidateInBase.y() < settings.minLeftFootY)
+                {
+                    result.crossesBody = true;
+                    const scalar_t crossingDistance = settings.minLeftFootY - result.candidateInBase.y();
+                    result.penalty += settings.crossBodyPenaltyWeight * crossingDistance * crossingDistance;
+                }
+            }
+            else
+            {
+                if (result.candidateInBase.y() > settings.maxRightFootY)
+                {
+                    result.crossesBody = true;
+                    const scalar_t crossingDistance = result.candidateInBase.y() - settings.maxRightFootY;
+                    result.penalty += settings.crossBodyPenaltyWeight * crossingDistance * crossingDistance;
+                }
+            }
+
+            return result;
+        }
+
+        scalar_t weightedDistanceCost(const vector3_t& nominalWorld, const vector3_t& projectionWorld,
+                                      const PerceptiveFootholdSettings& settings)
+        {
+            const vector3_t delta = projectionWorld - nominalWorld;
+            return settings.distanceWeightX * delta.x() * delta.x() +
+                settings.distanceWeightY * delta.y() * delta.y() +
+                settings.distanceWeightZ * delta.z() * delta.z();
+        }
+
+        FootholdProjectionCandidate makePlanarCandidate(
+            const vector3_t& nominalWorld, size_t leg, int regionIndex,
+            const convex_plane_decomposition::PlanarRegion& region,
+            const vector_t& initState, const CentroidalModelInfo& info,
+            const PerceptiveFootholdSettings& settings)
+        {
+            FootholdProjectionCandidate candidate;
+            candidate.regionType = "perceptive";
+            candidate.regionIndex = regionIndex;
+            candidate.nominalWorld = nominalWorld;
+            const vector3_t nominalInTerrain = region.transformPlaneToWorld.inverse() * nominalWorld;
+            candidate.projection.regionPtr = &region;
+            candidate.projection.positionInTerrainFrame =
+                convex_plane_decomposition::projectToPlanarRegion(
+                    convex_plane_decomposition::CgalPoint2d(nominalInTerrain.x(), nominalInTerrain.y()), region);
+            candidate.projection.positionInWorld =
+                convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                    candidate.projection.positionInTerrainFrame, region.transformPlaneToWorld);
+            candidate.distanceCost = weightedDistanceCost(nominalWorld, candidate.projection.positionInWorld, settings);
+            const auto kinematic = computeKinematicPenalty(leg, candidate.projection.positionInWorld,
+                                                           initState, info, settings);
+            candidate.kinematicPenalty = kinematic.penalty;
+            candidate.totalCost = candidate.distanceCost + candidate.kinematicPenalty;
+            candidate.reach = kinematic.reach;
+            candidate.crossesBody = kinematic.crossesBody;
+            candidate.hardReachExceeded = kinematic.hardReachExceeded;
+            candidate.candidateInBase = kinematic.candidateInBase;
+            candidate.valid = !candidate.hardReachExceeded;
+            candidate.invalidReason = candidate.hardReachExceeded ? "max_reach_hard_exceeded" : "";
+            candidate.projection.cost = candidate.totalCost;
+            return candidate;
+        }
+
+        FootholdProjectionCandidate makeStairCandidate(
+            const vector3_t& nominalWorld, size_t leg, size_t stepIndex,
+            const StairFootholdRegionSettings& stairSettings,
+            const vector_t& initState, const CentroidalModelInfo& info,
+            const PerceptiveFootholdSettings& settings)
+        {
+            FootholdProjectionCandidate candidate;
+            candidate.regionType = "stair_top";
+            candidate.regionIndex = static_cast<int>(stepIndex);
+            candidate.stairStepIndex = static_cast<int>(stepIndex);
+            candidate.stairLane = isLeftLeg(leg) ? "left" : "right";
+            candidate.nominalWorld = nominalWorld;
+            if (!makeStairTopRegion(stairSettings, stepIndex, leg,
+                                    stairSettings.edgeMarginX, stairSettings.edgeMarginY,
+                                    candidate.stairRegion))
+            {
+                candidate.valid = false;
+                candidate.invalidReason = "stair_margin_region_invalid";
+                return candidate;
+            }
+
+            candidate.projection = projectToStairTopRegion(nominalWorld, candidate.stairRegion);
+            candidate.distanceCost = weightedDistanceCost(nominalWorld, candidate.projection.positionInWorld, settings);
+            const auto kinematic = computeKinematicPenalty(leg, candidate.projection.positionInWorld,
+                                                           initState, info, settings);
+            candidate.kinematicPenalty = kinematic.penalty;
+            candidate.totalCost = candidate.distanceCost + candidate.kinematicPenalty;
+            candidate.reach = kinematic.reach;
+            candidate.crossesBody = kinematic.crossesBody;
+            candidate.hardReachExceeded = kinematic.hardReachExceeded;
+            candidate.candidateInBase = kinematic.candidateInBase;
+            candidate.valid = !candidate.hardReachExceeded;
+            candidate.invalidReason = candidate.hardReachExceeded ? "max_reach_hard_exceeded" : "";
+            candidate.projection.cost = candidate.totalCost;
+            return candidate;
+        }
+
+        std::string candidateToString(const FootholdProjectionCandidate& candidate)
+        {
+            std::ostringstream stream;
+            stream << std::fixed << std::setprecision(3)
+                << "valid=" << (candidate.valid ? "true" : "false")
+                << " type=" << candidate.regionType
+                << " region_index=" << candidate.regionIndex
+                << " stair_step=" << (candidate.stairStepIndex >= 0
+                                           ? std::to_string(candidate.stairStepIndex + 1)
+                                           : std::string("none"))
+                << " stair_lane=" << candidate.stairLane
+                << " projection_world=(" << candidate.projection.positionInWorld.x()
+                << "," << candidate.projection.positionInWorld.y()
+                << "," << candidate.projection.positionInWorld.z() << ")"
+                << " projection_terrain=(" << candidate.projection.positionInTerrainFrame.x()
+                << "," << candidate.projection.positionInTerrainFrame.y() << ")"
+                << " distance_cost=" << candidate.distanceCost
+                << " kinematic_penalty=" << candidate.kinematicPenalty
+                << " total_cost=" << candidate.totalCost
+                << " reach=" << candidate.reach
+                << " candidate_base=(" << candidate.candidateInBase.x()
+                << "," << candidate.candidateInBase.y()
+                << "," << candidate.candidateInBase.z() << ")"
+                << " crosses_body=" << (candidate.crossesBody ? "true" : "false")
+                << " hard_reach_exceeded=" << (candidate.hardReachExceeded ? "true" : "false");
+            if (!candidate.invalidReason.empty())
+            {
+                stream << " invalid_reason=" << candidate.invalidReason;
+            }
+            return stream.str();
+        }
+
         convex_plane_decomposition::CgalPolygon2d growConvexRegion(
             const convex_plane_decomposition::PlanarTerrainProjection& projection, size_t numVertices)
         {
@@ -414,14 +604,16 @@ namespace ocs2::legged_robot
                                                size_t numVertices,
                                                FixedFootholdRegionSettings fixedFootholdRegionSettings,
                                                FixedFootholdSequenceConfig fixedFootholdSequenceConfig,
-                                               StairFootholdRegionSettings stairFootholdRegionSettings)
+                                               StairFootholdRegionSettings stairFootholdRegionSettings,
+                                               PerceptiveFootholdSettings perceptiveFootholdSettings)
         : info_(std::move(info)),
           numVertices_(numVertices),
           planarTerrainPtr_(std::move(planarTerrainPtr)),
           endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
           fixedFootholdRegionSettings_(std::move(fixedFootholdRegionSettings)),
           fixedFootholdSequenceManager_(std::move(fixedFootholdSequenceConfig)),
-          stairFootholdRegionSettings_(std::move(stairFootholdRegionSettings))
+          stairFootholdRegionSettings_(std::move(stairFootholdRegionSettings)),
+          perceptiveFootholdSettings_(std::move(perceptiveFootholdSettings))
     {
     }
 
@@ -525,8 +717,11 @@ namespace ocs2::legged_robot
                         const auto& fixedRegion = getFixedFootholdRegion(leg);
                         std::string selectedRegion = "perceptive";
                         std::optional<size_t> candidateStep;
+                        std::optional<size_t> nominalStepFootprint;
                         bool stairTopFallback = false;
                         bool selectedStairTop = false;
+                        size_t candidateCount = 0;
+                        std::string selectedCandidateSummary;
                         convex_plane_decomposition::PlanarTerrainProjection projection;
                         convex_plane_decomposition::PlanarTerrainProjection originalProjection;
                         convex_plane_decomposition::CgalPolygon2d convexRegion;
@@ -577,83 +772,136 @@ namespace ocs2::legged_robot
                         }
                         else
                         {
-                            originalProjection = getBestPlanarRegionAtPositionInWorld(
-                                footPos, planarTerrain_.planarRegions, penaltyFunction);
-                            if (originalProjection.regionPtr == nullptr)
+                            if (perceptiveFootholdSettings_.projectionCandidateSearchEnable)
                             {
-                                std::cerr << std::fixed << std::setprecision(3)
-                                    << "[FootholdRegion] leg=" << leg
-                                    << " phase_start=" << standStartTime
-                                    << " phase_end=" << standFinalTime
-                                    << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
-                                    << " has no planar region projection; skipping region selection"
-                                    << std::endl;
-                                continue;
-                            }
-                            nudgeProjectionTowardInterior(footPos, originalProjection);
-                            projection = originalProjection;
-                            if (stairFootholdRegionSettings_.enable &&
-                                stairFootholdRegionSettings_.preferStairTopWhenInsideFootprint)
-                            {
-                                candidateStep = findStairStepByXY(stairFootholdRegionSettings_, leg,
-                                                                  footPos.x(), footPos.y());
-                                if (candidateStep.has_value())
+                                if (stairFootholdRegionSettings_.enable)
                                 {
-                                    auto& stairTopRegion = stairTopRegions_[leg][i];
-                                    if (makeStairTopRegion(stairFootholdRegionSettings_, candidateStep.value(), leg,
-                                                           stairFootholdRegionSettings_.edgeMarginX,
-                                                           stairFootholdRegionSettings_.edgeMarginY,
-                                                           stairTopRegion))
+                                    nominalStepFootprint = findStairStepByXY(
+                                        stairFootholdRegionSettings_, leg, footPos.x(), footPos.y());
+                                }
+                                std::vector<FootholdProjectionCandidate> candidates;
+                                candidates.reserve(planarTerrain_.planarRegions.size() +
+                                    (stairFootholdRegionSettings_.enable ? stairFootholdRegionSettings_.numSteps : 0));
+                                for (size_t regionIndex = 0; regionIndex < planarTerrain_.planarRegions.size();
+                                     ++regionIndex)
+                                {
+                                    candidates.push_back(makePlanarCandidate(
+                                        footPos, leg, static_cast<int>(regionIndex),
+                                        planarTerrain_.planarRegions[regionIndex],
+                                        initState, info_, perceptiveFootholdSettings_));
+                                }
+                                if (stairFootholdRegionSettings_.enable)
+                                {
+                                    for (size_t stepIndex = 0; stepIndex < stairFootholdRegionSettings_.numSteps;
+                                         ++stepIndex)
                                     {
-                                        projection = projectToStairTopRegion(footPos, stairTopRegion);
-                                        selectedRegion = "stair_top";
-                                        selectedStairTop = true;
-                                    }
-                                    else
-                                    {
-                                        stairTopFallback = true;
-                                        if (logFootholdRegion)
-                                        {
-                                            std::cerr << std::fixed << std::setprecision(3)
-                                                << "[FootholdRegionSelect][WARN] leg=" << legName(leg)
-                                                << " candidate_step=" << (candidateStep.value() + 1)
-                                                << " stair_top_failed=true fallback=original"
-                                                << " reason=shrunken_region_invalid"
-                                                << std::endl;
-                                        }
+                                        candidates.push_back(makeStairCandidate(
+                                            footPos, leg, stepIndex, stairFootholdRegionSettings_,
+                                            initState, info_, perceptiveFootholdSettings_));
                                     }
                                 }
-                            }
 
-                            convexRegion = growConvexRegion(projection, numVertices_);
-                            if (selectedStairTop && convexRegion.size() < 3)
-                            {
-                                auto& stairTopRegion = stairTopRegions_[leg][i];
-                                if (makeStairTopRegion(stairFootholdRegionSettings_, candidateStep.value(), leg,
-                                                       0.5 * stairFootholdRegionSettings_.edgeMarginX,
-                                                       0.5 * stairFootholdRegionSettings_.edgeMarginY,
-                                                       stairTopRegion))
+                                candidateCount = candidates.size();
+                                auto bestCandidateIt = candidates.end();
+                                for (auto it = candidates.begin(); it != candidates.end(); ++it)
                                 {
-                                    projection = projectToStairTopRegion(footPos, stairTopRegion);
-                                    convexRegion = growConvexRegion(projection, numVertices_);
+                                    if (!it->valid)
+                                    {
+                                        continue;
+                                    }
+                                    if (bestCandidateIt == candidates.end() ||
+                                        it->totalCost < bestCandidateIt->totalCost)
+                                    {
+                                        bestCandidateIt = it;
+                                    }
                                 }
-                                if (convexRegion.size() < 3)
+
+                                if (logFootholdRegion && perceptiveFootholdSettings_.printCandidateDebug)
                                 {
-                                    projection = originalProjection;
-                                    convexRegion = growConvexRegion(projection, numVertices_);
-                                    selectedRegion = "perceptive";
-                                    selectedStairTop = false;
-                                    stairTopFallback = true;
-                                    if (logFootholdRegion)
+                                    for (size_t candidateIndex = 0; candidateIndex < candidates.size();
+                                         ++candidateIndex)
                                     {
                                         std::cerr << std::fixed << std::setprecision(3)
-                                            << "[FootholdRegionSelect][WARN] leg=" << legName(leg)
-                                            << " candidate_step=" << (candidateStep.value() + 1)
-                                            << " stair_top_failed=true fallback=original"
-                                            << " reason=empty_active_region"
+                                            << "[FootholdCandidate] leg=" << legName(leg)
+                                            << " leg_index=" << leg
+                                            << " phase_index=" << i
+                                            << " candidate_index=" << candidateIndex
+                                            << " " << candidateToString(candidates[candidateIndex])
                                             << std::endl;
                                     }
                                 }
+
+                                if (bestCandidateIt == candidates.end())
+                                {
+                                    std::cerr << std::fixed << std::setprecision(3)
+                                        << "[FootholdCandidateSearch][WARN] leg=" << legName(leg)
+                                        << " leg_index=" << leg
+                                        << " phase_index=" << i
+                                        << " phase_start=" << standStartTime
+                                        << " phase_end=" << standFinalTime
+                                        << " nominal=(" << footPos.x() << "," << footPos.y() << ","
+                                        << footPos.z() << ")"
+                                        << " candidate_count=" << candidateCount
+                                        << " no_valid_candidate=true"
+                                        << " note=no_last_valid_fallback_no_polygon_replacement"
+                                        << std::endl;
+                                    if (logFootholdRegion)
+                                    {
+                                        for (size_t candidateIndex = 0; candidateIndex < candidates.size();
+                                             ++candidateIndex)
+                                        {
+                                            std::cerr << std::fixed << std::setprecision(3)
+                                                << "[FootholdCandidateSearch][INVALID] leg=" << legName(leg)
+                                                << " leg_index=" << leg
+                                                << " phase_index=" << i
+                                                << " candidate_index=" << candidateIndex
+                                                << " " << candidateToString(candidates[candidateIndex])
+                                                << std::endl;
+                                        }
+                                    }
+                                    continue;
+                                }
+
+                                selectedCandidateSummary = candidateToString(*bestCandidateIt);
+                                selectedRegion = bestCandidateIt->regionType;
+                                selectedStairTop = selectedRegion == "stair_top";
+                                if (selectedStairTop)
+                                {
+                                    candidateStep = static_cast<size_t>(bestCandidateIt->stairStepIndex);
+                                    stairTopRegions_[leg][i] = bestCandidateIt->stairRegion;
+                                    projection = bestCandidateIt->projection;
+                                    projection.regionPtr = &stairTopRegions_[leg][i];
+                                }
+                                else
+                                {
+                                    projection = bestCandidateIt->projection;
+                                }
+                                convexRegion = growConvexRegion(projection, numVertices_);
+                            }
+                            else
+                            {
+                                originalProjection = getBestPlanarRegionAtPositionInWorld(
+                                    footPos, planarTerrain_.planarRegions, penaltyFunction);
+                                if (originalProjection.regionPtr == nullptr)
+                                {
+                                    std::cerr << std::fixed << std::setprecision(3)
+                                        << "[FootholdRegion] leg=" << leg
+                                        << " phase_start=" << standStartTime
+                                        << " phase_end=" << standFinalTime
+                                        << " nominal=(" << footPos.x() << "," << footPos.y() << ","
+                                        << footPos.z() << ")"
+                                        << " has no planar region projection; skipping region selection"
+                                        << std::endl;
+                                    continue;
+                                }
+                                nudgeProjectionTowardInterior(footPos, originalProjection);
+                                projection = originalProjection;
+                                if (stairFootholdRegionSettings_.enable)
+                                {
+                                    nominalStepFootprint = findStairStepByXY(
+                                        stairFootholdRegionSettings_, leg, footPos.x(), footPos.y());
+                                }
+                                convexRegion = growConvexRegion(projection, numVertices_);
                             }
                         }
 
@@ -705,10 +953,13 @@ namespace ocs2::legged_robot
                                 << " phase_end=" << standFinalTime
                                 << " phase_mid=" << standMiddleTime
                                 << " nominal=(" << footPos.x() << "," << footPos.y() << "," << footPos.z() << ")"
-                                << " inside_step_footprint=" << (candidateStep.has_value() ? "true" : "false")
+                                << " candidate_search_enable="
+                                << (perceptiveFootholdSettings_.projectionCandidateSearchEnable ? "true" : "false")
+                                << " candidate_count=" << candidateCount
+                                << " inside_step_footprint=" << (nominalStepFootprint.has_value() ? "true" : "false")
                                 << " candidate_step="
-                                << (candidateStep.has_value()
-                                        ? std::to_string(candidateStep.value() + 1)
+                                << (nominalStepFootprint.has_value()
+                                        ? std::to_string(nominalStepFootprint.value() + 1)
                                         : std::string("none"))
                                 << " selected_region=" << selectedRegion
                                 << " selected_step="
@@ -729,6 +980,10 @@ namespace ocs2::legged_robot
                                         ? projection.regionPtr->transformPlaneToWorld.translation().z()
                                         : 0.0)
                                 << " fallback=" << (stairTopFallback ? "true" : "false");
+                            if (!selectedCandidateSummary.empty())
+                            {
+                                std::cerr << " selected_candidate={" << selectedCandidateSummary << "}";
+                            }
                             if (candidateStep.has_value())
                             {
                                 std::cerr
