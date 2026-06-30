@@ -56,40 +56,6 @@ namespace ocs2::legged_robot
             return std::abs(lhs - rhs) < 1e-6;
         }
 
-        bool isDefaultNoStepHole(const convex_plane_decomposition::CgalPolygon2d& hole)
-        {
-            if (hole.is_empty())
-            {
-                return false;
-            }
-
-            struct Bounds
-            {
-                double xMin;
-                double xMax;
-                double yMin;
-                double yMax;
-            };
-
-            constexpr std::array<Bounds, 3> noStepBounds = {
-                Bounds{-1.75, -1.65, -1.25, 1.25},
-                Bounds{0.90, 1.55, 0.75, 1.40},
-                Bounds{1.25, 1.45, -1.80, -0.45},
-            };
-            const auto bbox = hole.bbox();
-            for (const auto& bounds : noStepBounds)
-            {
-                if (almostEqual(bbox.xmin(), bounds.xMin) &&
-                    almostEqual(bbox.xmax(), bounds.xMax) &&
-                    almostEqual(bbox.ymin(), bounds.yMin) &&
-                    almostEqual(bbox.ymax(), bounds.yMax))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         bool isGazeboStairTopRegion(const convex_plane_decomposition::PlanarRegion& planarRegion)
         {
             struct StairTop
@@ -288,7 +254,7 @@ namespace ocs2::legged_robot
             constexpr std::array<const char*, 3> labels = {"B", "C", "D"};
             marker.text = regionIndex < labels.size()
                               ? labels[regionIndex]
-                              : std::string("No-Step ") + std::to_string(regionIndex);
+                              : std::string("Stair Footprint");
 
             if (!hole.is_empty())
             {
@@ -331,6 +297,10 @@ namespace ocs2::legged_robot
             header.frame_id = "odom";
 
             visualization_msgs::msg::MarkerArray makerArray;
+            visualization_msgs::msg::Marker clearMarker;
+            clearMarker.header = header;
+            clearMarker.action = visualization_msgs::msg::Marker::DELETEALL;
+            makerArray.markers.push_back(clearMarker);
             if (const auto planarTerrain = convex_region_selector_.getPlanarTerrainPtr())
             {
                 size_t noStepRegionIndex = 0;
@@ -351,10 +321,6 @@ namespace ocs2::legged_robot
 
                     for (const auto& hole : planarRegion.boundaryWithInset.boundary.holes())
                     {
-                        if (!isDefaultNoStepHole(hole))
-                        {
-                            continue;
-                        }
                         makerArray.markers.push_back(getNoStepRegionMarker(
                             header, hole, planarRegion.transformPlaneToWorld, noStepRegionIndex));
                         makerArray.markers.push_back(getNoStepRegionLabelMarker(

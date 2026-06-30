@@ -75,6 +75,11 @@ namespace ocs2::legged_robot
     struct PerceptiveFootholdSettings
     {
         bool projectionCandidateSearchEnable = true;
+        bool enableDefaultNoStepHoles = true;
+        bool enableStairFootprintHoles = true;
+        scalar_t groundOuterMargin = 0.03;
+        scalar_t groundHoleMargin = 0.03;
+        scalar_t minSafeRegionArea = 1e-3;
         scalar_t distanceWeightX = 1.0;
         scalar_t distanceWeightY = 1.0;
         scalar_t distanceWeightZ = 1.0;
@@ -84,6 +89,9 @@ namespace ocs2::legged_robot
         scalar_t minLeftFootY = 0.05;
         scalar_t maxRightFootY = -0.05;
         scalar_t crossBodyPenaltyWeight = 20.0;
+        bool freezeLateSwingEnable = true;
+        scalar_t freezeStartRatio = 0.5;
+        scalar_t freezeReleaseTolerance = 0.03;
         bool printCandidateDebug = false;
     };
 

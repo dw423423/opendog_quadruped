@@ -90,6 +90,11 @@ ocs2_quadruped_controller:
 
     perceptive_foothold:
       projection_candidate_search_enable: true
+      enable_default_no_step_holes: true
+      enable_stair_footprint_holes: true
+      ground_outer_margin: 0.53
+      ground_hole_margin: 0.53
+      min_safe_region_area: 0.001
       distance_weight_x: 1.0
       distance_weight_y: 1.0
       distance_weight_z: 1.0
@@ -99,6 +104,9 @@ ocs2_quadruped_controller:
       min_left_foot_y: 0.05
       max_right_foot_y: -0.05
       cross_body_penalty_weight: 20.0
+      freeze_late_swing_enable: true
+      freeze_start_ratio: 0.5
+      freeze_release_tolerance: 0.03
       print_candidate_debug: false
 
     fixed_foothold_regions:

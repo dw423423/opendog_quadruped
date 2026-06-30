@@ -223,15 +223,27 @@ namespace ocs2::legged_robot
         convex_plane_decomposition::CgalPolygonWithHoles2d boundary;
         boundary.outer_boundary() = makeErodedRectangle(
             -height / 2, +height / 2, -width / 2, +width / 2, groundErosionMargin);
-        addDefaultNoStepRegions(boundary, groundErosionMargin);
-        addStairFootprintHoles(boundary, groundErosionMargin);
+        if (perceptiveFootholdSettings_.enableDefaultNoStepHoles)
+        {
+            addDefaultNoStepRegions(boundary, 0.0);
+        }
+        if (perceptiveFootholdSettings_.enableStairFootprintHoles)
+        {
+            addStairFootprintHoles(boundary, 0.0);
+        }
         plannerRegion.boundaryWithInset.boundary = boundary;
         convex_plane_decomposition::CgalPolygonWithHoles2d insets;
         insets.outer_boundary() = makeErodedRectangle(
             -height / 2, +height / 2, -width / 2, +width / 2,
             groundErosionMargin + kTerrainInset);
-        addDefaultNoStepRegions(insets, groundErosionMargin + kTerrainInset);
-        addStairFootprintHoles(insets, groundErosionMargin + kTerrainInset);
+        if (perceptiveFootholdSettings_.enableDefaultNoStepHoles)
+        {
+            addDefaultNoStepRegions(insets, kTerrainInset);
+        }
+        if (perceptiveFootholdSettings_.enableStairFootprintHoles)
+        {
+            addStairFootprintHoles(insets, kTerrainInset);
+        }
         plannerRegion.boundaryWithInset.insets.push_back(insets);
         planarTerrainPtr_->planarRegions.push_back(plannerRegion);
         for (const auto& step : kGazeboStairSteps)

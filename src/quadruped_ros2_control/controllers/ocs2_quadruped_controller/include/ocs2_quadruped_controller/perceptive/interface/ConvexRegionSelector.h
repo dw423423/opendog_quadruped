@@ -109,6 +109,24 @@ namespace ocs2::legged_robot
         feet_array_t<std::vector<bool>> extractContactFlags(const std::vector<size_t>& phaseIDsStock) const;
 
     private:
+        struct FrozenFootholdConstraint
+        {
+            bool active = false;
+            size_t legIndex = 0;
+            size_t phaseIndex = 0;
+            scalar_t swingStartTime = 0.0;
+            scalar_t swingEndTime = 0.0;
+            scalar_t freezeTime = 0.0;
+            vector3_t nominalFootholdWorld = vector3_t::Zero();
+            convex_plane_decomposition::PlanarTerrainProjection projection;
+            convex_plane_decomposition::PlanarRegion planarRegion;
+            convex_plane_decomposition::CgalPolygon2d convexPolygon;
+            std::string selectedRegionType = "none";
+            int selectedRegionIndex = -1;
+            int stairStepIndex = -1;
+            std::string stairLane = "none";
+        };
+
         static std::pair<int, int> findIndex(size_t index, const std::vector<bool>& contactFlagStock);
 
         vector3_t getNominalFoothold(size_t leg, scalar_t time, const vector_t& initState,
@@ -117,6 +135,7 @@ namespace ocs2::legged_robot
         feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>> feetProjections_;
         feet_array_t<std::vector<convex_plane_decomposition::CgalPolygon2d>> convexPolygons_;
         feet_array_t<std::vector<convex_plane_decomposition::PlanarRegion>> stairTopRegions_;
+        feet_array_t<std::vector<convex_plane_decomposition::PlanarRegion>> safeFootholdRegions_;
 
         feet_array_t<std::vector<vector3_t>> nominalFootholds_;
         feet_array_t<std::vector<scalar_t>> middleTimes_;
@@ -135,5 +154,6 @@ namespace ocs2::legged_robot
         FixedFootholdSequenceManager fixedFootholdSequenceManager_;
         StairFootholdRegionSettings stairFootholdRegionSettings_;
         PerceptiveFootholdSettings perceptiveFootholdSettings_;
+        feet_array_t<FrozenFootholdConstraint> frozenFootholdConstraints_;
     };
 } // namespace ocs2::legged_robot

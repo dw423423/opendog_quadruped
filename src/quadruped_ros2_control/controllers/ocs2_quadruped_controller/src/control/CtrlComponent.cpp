@@ -443,6 +443,18 @@ namespace ocs2::legged_robot
         settings.projectionCandidateSearchEnable =
             getBoolParam("perceptive_foothold.projection_candidate_search_enable",
                          settings.projectionCandidateSearchEnable);
+        settings.enableDefaultNoStepHoles =
+            getBoolParam("perceptive_foothold.enable_default_no_step_holes",
+                         settings.enableDefaultNoStepHoles);
+        settings.enableStairFootprintHoles =
+            getBoolParam("perceptive_foothold.enable_stair_footprint_holes",
+                         settings.enableStairFootprintHoles);
+        settings.groundOuterMargin = getDoubleParam("perceptive_foothold.ground_outer_margin",
+                                                    settings.groundOuterMargin);
+        settings.groundHoleMargin = getDoubleParam("perceptive_foothold.ground_hole_margin",
+                                                   settings.groundHoleMargin);
+        settings.minSafeRegionArea = getDoubleParam("perceptive_foothold.min_safe_region_area",
+                                                    settings.minSafeRegionArea);
         settings.distanceWeightX = getDoubleParam("perceptive_foothold.distance_weight_x",
                                                   settings.distanceWeightX);
         settings.distanceWeightY = getDoubleParam("perceptive_foothold.distance_weight_y",
@@ -461,18 +473,35 @@ namespace ocs2::legged_robot
                                                 settings.maxRightFootY);
         settings.crossBodyPenaltyWeight = getDoubleParam("perceptive_foothold.cross_body_penalty_weight",
                                                          settings.crossBodyPenaltyWeight);
+        settings.freezeLateSwingEnable = getBoolParam("perceptive_foothold.freeze_late_swing_enable",
+                                                      settings.freezeLateSwingEnable);
+        settings.freezeStartRatio = getDoubleParam("perceptive_foothold.freeze_start_ratio",
+                                                   settings.freezeStartRatio);
+        settings.freezeStartRatio = std::clamp(settings.freezeStartRatio, 0.0, 1.0);
+        settings.freezeReleaseTolerance = getDoubleParam("perceptive_foothold.freeze_release_tolerance",
+                                                         settings.freezeReleaseTolerance);
+        settings.freezeReleaseTolerance = std::max(0.0, settings.freezeReleaseTolerance);
         settings.printCandidateDebug = getBoolParam("perceptive_foothold.print_candidate_debug",
                                                     settings.printCandidateDebug);
 
         RCLCPP_INFO(node_->get_logger(),
                     "[PerceptiveFoothold] candidate_search=%s distance_weights=(%.3f,%.3f,%.3f) "
                     "reach_soft=%.3f reach_hard=%.3f reach_weight=%.3f "
-                    "left_min_y=%.3f right_max_y=%.3f cross_weight=%.3f print_candidates=%s",
+                    "left_min_y=%.3f right_max_y=%.3f cross_weight=%.3f print_candidates=%s "
+                    "ground_outer_margin=%.3f ground_hole_margin=%.3f min_safe_area=%.6f "
+                    "default_no_step_holes=%s stair_footprint_holes=%s "
+                    "freeze_late_swing=%s freeze_start_ratio=%.3f freeze_release_tolerance=%.3f",
                     boolString(settings.projectionCandidateSearchEnable),
                     settings.distanceWeightX, settings.distanceWeightY, settings.distanceWeightZ,
                     settings.maxReachSoft, settings.maxReachHard, settings.reachPenaltyWeight,
                     settings.minLeftFootY, settings.maxRightFootY,
-                    settings.crossBodyPenaltyWeight, boolString(settings.printCandidateDebug));
+                    settings.crossBodyPenaltyWeight, boolString(settings.printCandidateDebug),
+                    settings.groundOuterMargin, settings.groundHoleMargin, settings.minSafeRegionArea,
+                    boolString(settings.enableDefaultNoStepHoles),
+                    boolString(settings.enableStairFootprintHoles),
+                    boolString(settings.freezeLateSwingEnable),
+                    settings.freezeStartRatio,
+                    settings.freezeReleaseTolerance);
         return settings;
     }
 

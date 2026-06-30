@@ -257,6 +257,22 @@ namespace ocs2::legged_robot
             return true;
         }
 
+        size_t findCurrentPhaseIndex(const std::vector<scalar_t>& eventTimes, size_t numPhases, scalar_t time)
+        {
+            if (numPhases == 0)
+            {
+                return 0;
+            }
+            for (size_t phase = 0; phase + 1 < eventTimes.size() && phase < numPhases; ++phase)
+            {
+                if (time >= eventTimes[phase] && time < eventTimes[phase + 1])
+                {
+                    return phase;
+                }
+            }
+            return std::min(numPhases - 1, eventTimes.size() > 1 ? eventTimes.size() - 2 : size_t{0});
+        }
+
         const char* legName(size_t leg)
         {
             constexpr std::array<const char*, 4> names = {"FL", "FR", "RL", "RR"};
@@ -277,6 +293,279 @@ namespace ocs2::legged_robot
             rectangle.push_back(convex_plane_decomposition::CgalPoint2d(xMin, yMin));
             rectangle.push_back(convex_plane_decomposition::CgalPoint2d(xMax, yMin));
             return rectangle;
+        }
+
+        using Polygon2d = convex_plane_decomposition::CgalPolygon2d;
+        using PolygonWithHoles2d = convex_plane_decomposition::CgalPolygonWithHoles2d;
+
+        struct SafeFootholdRegion
+        {
+            std::string regionType;
+            Polygon2d rawOuterBoundary;
+            Polygon2d safeOuterBoundary;
+            std::vector<Polygon2d> rawHoles;
+            std::vector<Polygon2d> safeHoles;
+            scalar_t outerMargin = 0.0;
+            scalar_t holeMargin = 0.0;
+            scalar_t rawArea = 0.0;
+            scalar_t safeArea = 0.0;
+            bool valid = false;
+            std::string invalidReason;
+            convex_plane_decomposition::PlanarRegion safePlanarRegion;
+        };
+
+        std::vector<Eigen::Matrix<scalar_t, 2, 1>> polygonToEigenPoints(const Polygon2d& polygon)
+        {
+            std::vector<Eigen::Matrix<scalar_t, 2, 1>> points;
+            points.reserve(polygon.size());
+            for (size_t i = 0; i < polygon.size(); ++i)
+            {
+                const auto vertex = polygon.vertex(static_cast<int>(i));
+                points.emplace_back(vertex.x(), vertex.y());
+            }
+            return points;
+        }
+
+        Polygon2d eigenPointsToPolygon(const std::vector<Eigen::Matrix<scalar_t, 2, 1>>& points)
+        {
+            Polygon2d polygon;
+            for (const auto& point : points)
+            {
+                polygon.push_back(convex_plane_decomposition::CgalPoint2d(point.x(), point.y()));
+            }
+            return polygon;
+        }
+
+        bool isInsideShiftedHalfPlane(const Eigen::Matrix<scalar_t, 2, 1>& point,
+                                      const Eigen::Matrix<scalar_t, 2, 1>& a,
+                                      const Eigen::Matrix<scalar_t, 2, 1>& b,
+                                      scalar_t orientationSign)
+        {
+            constexpr scalar_t kHalfPlaneTolerance = 1e-9;
+            const auto edge = b - a;
+            const auto pointFromA = point - a;
+            const scalar_t cross = edge.x() * pointFromA.y() - edge.y() * pointFromA.x();
+            return orientationSign * cross >= -kHalfPlaneTolerance;
+        }
+
+        std::optional<Eigen::Matrix<scalar_t, 2, 1>> intersectLines(
+            const Eigen::Matrix<scalar_t, 2, 1>& p0,
+            const Eigen::Matrix<scalar_t, 2, 1>& p1,
+            const Eigen::Matrix<scalar_t, 2, 1>& a,
+            const Eigen::Matrix<scalar_t, 2, 1>& b)
+        {
+            const auto r = p1 - p0;
+            const auto s = b - a;
+            const scalar_t denominator = r.x() * s.y() - r.y() * s.x();
+            if (std::abs(denominator) < 1e-12)
+            {
+                return std::nullopt;
+            }
+            const auto qp = a - p0;
+            const scalar_t t = (qp.x() * s.y() - qp.y() * s.x()) / denominator;
+            return p0 + t * r;
+        }
+
+        Polygon2d offsetConvexPolygon(const Polygon2d& polygon, scalar_t inwardMargin)
+        {
+            if (polygon.size() < 3 || std::abs(inwardMargin) < 1e-12)
+            {
+                return polygon;
+            }
+
+            const scalar_t area = signedPolygonArea(polygon);
+            if (std::abs(area) < 1e-12)
+            {
+                return {};
+            }
+            const scalar_t orientationSign = area > 0.0 ? 1.0 : -1.0;
+            auto clipped = polygonToEigenPoints(polygon);
+
+            for (size_t edgeIndex = 0; edgeIndex < polygon.size(); ++edgeIndex)
+            {
+                const auto a0 = polygon.vertex(static_cast<int>(edgeIndex));
+                const auto b0 = polygon.vertex(static_cast<int>((edgeIndex + 1) % polygon.size()));
+                Eigen::Matrix<scalar_t, 2, 1> a(a0.x(), a0.y());
+                Eigen::Matrix<scalar_t, 2, 1> b(b0.x(), b0.y());
+                const auto edge = b - a;
+                const scalar_t length = edge.norm();
+                if (length < 1e-12)
+                {
+                    return {};
+                }
+                Eigen::Matrix<scalar_t, 2, 1> leftNormal(-edge.y() / length, edge.x() / length);
+                const auto interiorNormal = orientationSign > 0.0 ? leftNormal : -leftNormal;
+                a += inwardMargin * interiorNormal;
+                b += inwardMargin * interiorNormal;
+
+                std::vector<Eigen::Matrix<scalar_t, 2, 1>> next;
+                if (clipped.empty())
+                {
+                    return {};
+                }
+                next.reserve(clipped.size() + 1);
+                for (size_t i = 0; i < clipped.size(); ++i)
+                {
+                    const auto current = clipped[i];
+                    const auto previous = clipped[(i + clipped.size() - 1) % clipped.size()];
+                    const bool currentInside = isInsideShiftedHalfPlane(current, a, b, orientationSign);
+                    const bool previousInside = isInsideShiftedHalfPlane(previous, a, b, orientationSign);
+                    if (currentInside != previousInside)
+                    {
+                        const auto intersection = intersectLines(previous, current, a, b);
+                        if (intersection.has_value())
+                        {
+                            next.push_back(intersection.value());
+                        }
+                    }
+                    if (currentInside)
+                    {
+                        next.push_back(current);
+                    }
+                }
+                clipped = std::move(next);
+            }
+
+            return eigenPointsToPolygon(clipped);
+        }
+
+        std::vector<Polygon2d> collectHoles(const PolygonWithHoles2d& polygonWithHoles)
+        {
+            std::vector<Polygon2d> holes;
+            for (const auto& hole : polygonWithHoles.holes())
+            {
+                holes.push_back(hole);
+            }
+            return holes;
+        }
+
+        scalar_t polygonWithHolesArea(const Polygon2d& outer, const std::vector<Polygon2d>& holes)
+        {
+            scalar_t area = std::abs(signedPolygonArea(outer));
+            for (const auto& hole : holes)
+            {
+                area -= std::abs(signedPolygonArea(hole));
+            }
+            return area;
+        }
+
+        PolygonWithHoles2d makePolygonWithHoles(const Polygon2d& outer, const std::vector<Polygon2d>& holes)
+        {
+            PolygonWithHoles2d polygon;
+            polygon.outer_boundary() = outer;
+            for (const auto& hole : holes)
+            {
+                polygon.holes().push_back(hole);
+            }
+            return polygon;
+        }
+
+        std::string safeRegionSummaryToString(const SafeFootholdRegion& region)
+        {
+            std::ostringstream stream;
+            stream << std::fixed << std::setprecision(3)
+                << "safe_valid=" << (region.valid ? "true" : "false")
+                << " safe_area=" << region.safeArea
+                << " raw_area=" << region.rawArea
+                << " raw_outer_vertices=" << region.rawOuterBoundary.size()
+                << " safe_outer_vertices=" << region.safeOuterBoundary.size()
+                << " raw_holes=" << region.rawHoles.size()
+                << " safe_holes=" << region.safeHoles.size()
+                << " outer_margin=" << region.outerMargin
+                << " hole_margin=" << region.holeMargin;
+            if (!region.invalidReason.empty())
+            {
+                stream << " safe_invalid_reason=" << region.invalidReason;
+            }
+            return stream.str();
+        }
+
+        SafeFootholdRegion buildSafeFootholdRegion(
+            const convex_plane_decomposition::PlanarRegion& rawRegion,
+            const std::string& regionType,
+            const PerceptiveFootholdSettings& settings)
+        {
+            SafeFootholdRegion safeRegion;
+            safeRegion.regionType = regionType;
+            safeRegion.outerMargin = std::max<scalar_t>(0.0, settings.groundOuterMargin);
+            safeRegion.holeMargin = std::max<scalar_t>(0.0, settings.groundHoleMargin);
+            safeRegion.rawOuterBoundary = rawRegion.boundaryWithInset.boundary.outer_boundary();
+            safeRegion.rawHoles = collectHoles(rawRegion.boundaryWithInset.boundary);
+            safeRegion.rawArea = polygonWithHolesArea(safeRegion.rawOuterBoundary, safeRegion.rawHoles);
+
+            if (safeRegion.rawOuterBoundary.size() < 3 || !polygonHasFiniteVertices(safeRegion.rawOuterBoundary))
+            {
+                safeRegion.invalidReason = "raw_outer_boundary_invalid";
+                return safeRegion;
+            }
+
+            safeRegion.safeOuterBoundary = offsetConvexPolygon(safeRegion.rawOuterBoundary, safeRegion.outerMargin);
+            if (safeRegion.safeOuterBoundary.size() < 3 || !polygonHasFiniteVertices(safeRegion.safeOuterBoundary))
+            {
+                safeRegion.invalidReason = "safe_outer_boundary_invalid_after_margin";
+                return safeRegion;
+            }
+
+            safeRegion.safeHoles.reserve(safeRegion.rawHoles.size());
+            for (const auto& hole : safeRegion.rawHoles)
+            {
+                if (hole.size() < 3 || !polygonHasFiniteVertices(hole))
+                {
+                    safeRegion.invalidReason = "raw_hole_invalid";
+                    return safeRegion;
+                }
+                auto safeHole = offsetConvexPolygon(hole, -safeRegion.holeMargin);
+                if (safeHole.size() < 3 || !polygonHasFiniteVertices(safeHole))
+                {
+                    safeRegion.invalidReason = "safe_hole_invalid_after_margin";
+                    return safeRegion;
+                }
+                safeRegion.safeHoles.push_back(std::move(safeHole));
+            }
+
+            safeRegion.safeArea = polygonWithHolesArea(safeRegion.safeOuterBoundary, safeRegion.safeHoles);
+            if (safeRegion.safeArea <= settings.minSafeRegionArea)
+            {
+                safeRegion.invalidReason = "safe_region_area_below_threshold";
+                return safeRegion;
+            }
+
+            safeRegion.safePlanarRegion = rawRegion;
+            safeRegion.safePlanarRegion.boundaryWithInset.boundary =
+                makePolygonWithHoles(safeRegion.safeOuterBoundary, safeRegion.safeHoles);
+            safeRegion.safePlanarRegion.boundaryWithInset.insets.clear();
+            safeRegion.safePlanarRegion.boundaryWithInset.insets.push_back(
+                safeRegion.safePlanarRegion.boundaryWithInset.boundary);
+            safeRegion.safePlanarRegion.bbox2d = safeRegion.safeOuterBoundary.bbox();
+            safeRegion.valid = true;
+            return safeRegion;
+        }
+
+        bool polygonEdgesIntersectAnyHole(const Polygon2d& polygon, const std::vector<Polygon2d>& holes)
+        {
+            for (auto edgeIt = polygon.edges_begin(); edgeIt != polygon.edges_end(); ++edgeIt)
+            {
+                for (const auto& hole : holes)
+                {
+                    if (convex_plane_decomposition::doEdgesIntersect(*edgeIt, hole))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool polygonInsideSafeRegion(const Polygon2d& polygon, const PolygonWithHoles2d& safeShape)
+        {
+            for (const auto& vertex : polygon)
+            {
+                if (!convex_plane_decomposition::isInside(vertex, safeShape))
+                {
+                    return false;
+                }
+            }
+            return !polygonEdgesIntersectAnyHole(polygon, collectHoles(safeShape));
         }
 
         std::pair<scalar_t, scalar_t> legLaneYBounds(const StairFootholdRegionSettings& settings, size_t leg)
@@ -379,6 +668,7 @@ namespace ocs2::legged_robot
             std::string stairLane = "none";
             vector3_t nominalWorld = vector3_t::Zero();
             convex_plane_decomposition::PlanarTerrainProjection projection;
+            SafeFootholdRegion safeRegion;
             convex_plane_decomposition::PlanarRegion stairRegion;
             scalar_t distanceCost = 0.0;
             scalar_t kinematicPenalty = 0.0;
@@ -455,17 +745,29 @@ namespace ocs2::legged_robot
             const PerceptiveFootholdSettings& settings)
         {
             FootholdProjectionCandidate candidate;
-            candidate.regionType = "perceptive";
+            candidate.regionType = "ordinary_ground";
             candidate.regionIndex = regionIndex;
             candidate.nominalWorld = nominalWorld;
-            const vector3_t nominalInTerrain = region.transformPlaneToWorld.inverse() * nominalWorld;
-            candidate.projection.regionPtr = &region;
+            candidate.safeRegion = buildSafeFootholdRegion(region, candidate.regionType, settings);
+            if (!candidate.safeRegion.valid)
+            {
+                candidate.valid = false;
+                candidate.invalidReason = candidate.safeRegion.invalidReason;
+                return candidate;
+            }
+
+            const auto& safeRegion = candidate.safeRegion.safePlanarRegion;
+            const vector3_t nominalInTerrain = safeRegion.transformPlaneToWorld.inverse() * nominalWorld;
+            candidate.projection.regionPtr = &candidate.safeRegion.safePlanarRegion;
             candidate.projection.positionInTerrainFrame =
                 convex_plane_decomposition::projectToPlanarRegion(
-                    convex_plane_decomposition::CgalPoint2d(nominalInTerrain.x(), nominalInTerrain.y()), region);
+                    convex_plane_decomposition::CgalPoint2d(nominalInTerrain.x(), nominalInTerrain.y()), safeRegion);
             candidate.projection.positionInWorld =
                 convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
-                    candidate.projection.positionInTerrainFrame, region.transformPlaneToWorld);
+                    candidate.projection.positionInTerrainFrame, safeRegion.transformPlaneToWorld);
+            const bool projectionInSafe = convex_plane_decomposition::isInside(
+                candidate.projection.positionInTerrainFrame,
+                candidate.safeRegion.safePlanarRegion.boundaryWithInset.boundary);
             candidate.distanceCost = weightedDistanceCost(nominalWorld, candidate.projection.positionInWorld, settings);
             const auto kinematic = computeKinematicPenalty(leg, candidate.projection.positionInWorld,
                                                            initState, info, settings);
@@ -475,8 +777,19 @@ namespace ocs2::legged_robot
             candidate.crossesBody = kinematic.crossesBody;
             candidate.hardReachExceeded = kinematic.hardReachExceeded;
             candidate.candidateInBase = kinematic.candidateInBase;
-            candidate.valid = !candidate.hardReachExceeded;
-            candidate.invalidReason = candidate.hardReachExceeded ? "max_reach_hard_exceeded" : "";
+            candidate.valid = projectionInSafe && !candidate.hardReachExceeded;
+            if (!projectionInSafe)
+            {
+                candidate.invalidReason = "projection_not_inside_safe_region";
+            }
+            else if (candidate.hardReachExceeded)
+            {
+                candidate.invalidReason = "max_reach_hard_exceeded";
+            }
+            else
+            {
+                candidate.invalidReason.clear();
+            }
             candidate.projection.cost = candidate.totalCost;
             return candidate;
         }
@@ -502,7 +815,33 @@ namespace ocs2::legged_robot
                 return candidate;
             }
 
+            const scalar_t xMinRaw = stairSettings.stepXStart +
+                static_cast<scalar_t>(stepIndex) * stairSettings.stepDepth;
+            const scalar_t xMaxRaw = xMinRaw + stairSettings.stepDepth;
+            const auto [laneYMinRaw, laneYMaxRaw] = legLaneYBounds(stairSettings, leg);
+            candidate.safeRegion.regionType = candidate.regionType;
+            candidate.safeRegion.outerMargin = std::max(stairSettings.edgeMarginX, stairSettings.edgeMarginY);
+            candidate.safeRegion.holeMargin = 0.0;
+            candidate.safeRegion.rawOuterBoundary = makeRectangle(xMinRaw, xMaxRaw, laneYMinRaw, laneYMaxRaw);
+            candidate.safeRegion.safeOuterBoundary =
+                candidate.stairRegion.boundaryWithInset.boundary.outer_boundary();
+            candidate.safeRegion.rawArea =
+                std::abs(signedPolygonArea(candidate.safeRegion.rawOuterBoundary));
+            candidate.safeRegion.safeArea =
+                std::abs(signedPolygonArea(candidate.safeRegion.safeOuterBoundary));
+            candidate.safeRegion.safePlanarRegion = candidate.stairRegion;
+            candidate.safeRegion.valid = candidate.safeRegion.safeArea > settings.minSafeRegionArea;
+            if (!candidate.safeRegion.valid)
+            {
+                candidate.valid = false;
+                candidate.invalidReason = "stair_safe_region_area_below_threshold";
+                return candidate;
+            }
+
             candidate.projection = projectToStairTopRegion(nominalWorld, candidate.stairRegion);
+            const bool projectionInSafe = convex_plane_decomposition::isInside(
+                candidate.projection.positionInTerrainFrame,
+                candidate.stairRegion.boundaryWithInset.boundary);
             candidate.distanceCost = weightedDistanceCost(nominalWorld, candidate.projection.positionInWorld, settings);
             const auto kinematic = computeKinematicPenalty(leg, candidate.projection.positionInWorld,
                                                            initState, info, settings);
@@ -512,8 +851,19 @@ namespace ocs2::legged_robot
             candidate.crossesBody = kinematic.crossesBody;
             candidate.hardReachExceeded = kinematic.hardReachExceeded;
             candidate.candidateInBase = kinematic.candidateInBase;
-            candidate.valid = !candidate.hardReachExceeded;
-            candidate.invalidReason = candidate.hardReachExceeded ? "max_reach_hard_exceeded" : "";
+            candidate.valid = projectionInSafe && !candidate.hardReachExceeded;
+            if (!projectionInSafe)
+            {
+                candidate.invalidReason = "projection_not_inside_safe_region";
+            }
+            else if (candidate.hardReachExceeded)
+            {
+                candidate.invalidReason = "max_reach_hard_exceeded";
+            }
+            else
+            {
+                candidate.invalidReason.clear();
+            }
             candidate.projection.cost = candidate.totalCost;
             return candidate;
         }
@@ -538,6 +888,13 @@ namespace ocs2::legged_robot
                 << " kinematic_penalty=" << candidate.kinematicPenalty
                 << " total_cost=" << candidate.totalCost
                 << " reach=" << candidate.reach
+                << " " << safeRegionSummaryToString(candidate.safeRegion)
+                << " projection_in_safe="
+                << (candidate.safeRegion.valid &&
+                        convex_plane_decomposition::isInside(
+                            candidate.projection.positionInTerrainFrame,
+                            candidate.safeRegion.safePlanarRegion.boundaryWithInset.boundary)
+                        ? "true" : "false")
                 << " candidate_base=(" << candidate.candidateInBase.x()
                 << "," << candidate.candidateInBase.y()
                 << "," << candidate.candidateInBase.z() << ")"
@@ -646,6 +1003,54 @@ namespace ocs2::legged_robot
         const auto contactFlagStocks = extractContactFlags(modeSequence);
         const size_t numPhases = modeSequence.size();
         const bool logFootholdRegion = shouldLogFootholdRegion(initTime);
+        const size_t currentPhaseIndex = findCurrentPhaseIndex(eventTimes, numPhases, initTime);
+
+        for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
+        {
+            auto& frozen = frozenFootholdConstraints_[leg];
+            if (!frozen.active)
+            {
+                continue;
+            }
+
+            std::string releaseReason;
+            if (numPhases == 0 || currentPhaseIndex >= contactFlagStocks[leg].size())
+            {
+                releaseReason = "schedule_empty";
+            }
+            else if (contactFlagStocks[leg][currentPhaseIndex])
+            {
+                releaseReason = "leg_entered_stance";
+            }
+            else if (initTime > frozen.swingEndTime + perceptiveFootholdSettings_.freezeReleaseTolerance)
+            {
+                releaseReason = "past_touchdown_tolerance";
+            }
+            else if (frozen.phaseIndex >= numPhases)
+            {
+                releaseReason = "frozen_phase_out_of_schedule";
+            }
+            else if (initTime < frozen.swingStartTime - perceptiveFootholdSettings_.freezeReleaseTolerance)
+            {
+                releaseReason = "next_swing_or_schedule_shift";
+            }
+
+            if (!releaseReason.empty())
+            {
+                std::cerr << std::fixed << std::setprecision(3)
+                    << "[FootholdFreeze] freeze released"
+                    << " leg=" << legName(leg)
+                    << " leg_index=" << leg
+                    << " old_phase_index=" << frozen.phaseIndex
+                    << " current_phase_index=" << currentPhaseIndex
+                    << " time=" << initTime
+                    << " swing_start=" << frozen.swingStartTime
+                    << " swing_end=" << frozen.swingEndTime
+                    << " reason=" << releaseReason
+                    << std::endl;
+                frozen = {};
+            }
+        }
 
         // Find start and final index of time for legs
         feet_array_t<std::vector<int>> startIndices;
@@ -677,10 +1082,12 @@ namespace ocs2::legged_robot
             convexPolygons_[leg].clear();
             nominalFootholds_[leg].clear();
             stairTopRegions_[leg].clear();
+            safeFootholdRegions_[leg].clear();
             feetProjections_[leg].resize(numPhases);
             convexPolygons_[leg].resize(numPhases);
             nominalFootholds_[leg].resize(numPhases);
             stairTopRegions_[leg].resize(numPhases);
+            safeFootholdRegions_[leg].resize(numPhases);
             middleTimes_[leg].clear();
             initStandFinalTime_[leg] = 0;
             const bool hasSwingPhase = std::any_of(contactFlagStocks[leg].begin(), contactFlagStocks[leg].end(),
@@ -715,9 +1122,11 @@ namespace ocs2::legged_robot
                         auto penaltyFunction = [](const vector3_t& /*projectedPoint*/) { return 0.0; };
                         const bool useFixedRegion = fixedFootholdRegionsEnabled();
                         const auto& fixedRegion = getFixedFootholdRegion(leg);
-                        std::string selectedRegion = "perceptive";
-                        std::optional<size_t> candidateStep;
-                        std::optional<size_t> nominalStepFootprint;
+                        std::string selectedRegion = "ordinary_ground";
+                        int selectedRegionIndex = -1;
+                        int selectedStairStepIndex = -1;
+                        std::string selectedStairLane = "none";
+                        std::optional<size_t> nominalStepFootprint = std::nullopt;
                         bool stairTopFallback = false;
                         bool selectedStairTop = false;
                         size_t candidateCount = 0;
@@ -864,17 +1273,16 @@ namespace ocs2::legged_robot
 
                                 selectedCandidateSummary = candidateToString(*bestCandidateIt);
                                 selectedRegion = bestCandidateIt->regionType;
+                                selectedRegionIndex = bestCandidateIt->regionIndex;
                                 selectedStairTop = selectedRegion == "stair_top";
+                                safeFootholdRegions_[leg][i] = bestCandidateIt->safeRegion.safePlanarRegion;
+                                projection = bestCandidateIt->projection;
+                                projection.regionPtr = &safeFootholdRegions_[leg][i];
                                 if (selectedStairTop)
                                 {
-                                    candidateStep = static_cast<size_t>(bestCandidateIt->stairStepIndex);
-                                    stairTopRegions_[leg][i] = bestCandidateIt->stairRegion;
-                                    projection = bestCandidateIt->projection;
-                                    projection.regionPtr = &stairTopRegions_[leg][i];
-                                }
-                                else
-                                {
-                                    projection = bestCandidateIt->projection;
+                                    selectedStairStepIndex = bestCandidateIt->stairStepIndex;
+                                    selectedStairLane = bestCandidateIt->stairLane;
+                                    stairTopRegions_[leg][i] = safeFootholdRegions_[leg][i];
                                 }
                                 convexRegion = growConvexRegion(projection, numVertices_);
                             }
@@ -894,8 +1302,41 @@ namespace ocs2::legged_robot
                                         << std::endl;
                                     continue;
                                 }
-                                nudgeProjectionTowardInterior(footPos, originalProjection);
-                                projection = originalProjection;
+                                auto safeRegion = buildSafeFootholdRegion(
+                                    *originalProjection.regionPtr, "ordinary_ground", perceptiveFootholdSettings_);
+                                if (!safeRegion.valid)
+                                {
+                                    std::cerr << std::fixed << std::setprecision(3)
+                                        << "[FootholdSafeRegion][WARN] leg=" << legName(leg)
+                                        << " leg_index=" << leg
+                                        << " phase_index=" << i
+                                        << " selected_region=ordinary_ground"
+                                        << " invalid_reason=" << safeRegion.invalidReason
+                                        << " raw_area=" << safeRegion.rawArea
+                                        << " safe_area=" << safeRegion.safeArea
+                                        << " outer_margin=" << safeRegion.outerMargin
+                                        << " hole_margin=" << safeRegion.holeMargin
+                                        << " note=no_last_valid_fallback_no_polygon_replacement"
+                                        << std::endl;
+                                    continue;
+                                }
+                                safeFootholdRegions_[leg][i] = safeRegion.safePlanarRegion;
+                                selectedRegion = safeRegion.regionType;
+                                const vector3_t footPosInSafe =
+                                    safeFootholdRegions_[leg][i].transformPlaneToWorld.inverse() * footPos;
+                                projection.regionPtr = &safeFootholdRegions_[leg][i];
+                                projection.positionInTerrainFrame =
+                                    convex_plane_decomposition::projectToPlanarRegion(
+                                        convex_plane_decomposition::CgalPoint2d(
+                                            footPosInSafe.x(), footPosInSafe.y()),
+                                        safeFootholdRegions_[leg][i]);
+                                projection.positionInWorld =
+                                    convex_plane_decomposition::positionInWorldFrameFromPosition2dInPlane(
+                                        projection.positionInTerrainFrame,
+                                        safeFootholdRegions_[leg][i].transformPlaneToWorld);
+                                projection.cost = weightedDistanceCost(
+                                    footPos, projection.positionInWorld, perceptiveFootholdSettings_);
+                                nudgeProjectionTowardInterior(footPos, projection);
                                 if (stairFootholdRegionSettings_.enable)
                                 {
                                     nominalStepFootprint = findStairStepByXY(
@@ -909,7 +1350,17 @@ namespace ocs2::legged_robot
                         const bool projectionInsidePolygon =
                             projection.regionPtr != nullptr &&
                             isPointInsideConvexPolygon(projection.positionInTerrainFrame, convexRegion);
-                        if ((!polygonValidation.valid || !projectionInsidePolygon) && logFootholdRegion)
+                        const bool hasSafeShape = projection.regionPtr != nullptr &&
+                            !useFixedRegion &&
+                            !projection.regionPtr->boundaryWithInset.boundary.outer_boundary().is_empty();
+                        const bool polygonInsideSafeShape = !hasSafeShape ||
+                            polygonInsideSafeRegion(convexRegion, projection.regionPtr->boundaryWithInset.boundary);
+                        const bool projectionInsideSafeShape = !hasSafeShape ||
+                            convex_plane_decomposition::isInside(
+                                projection.positionInTerrainFrame,
+                                projection.regionPtr->boundaryWithInset.boundary);
+                        if ((!polygonValidation.valid || !projectionInsidePolygon ||
+                                !polygonInsideSafeShape || !projectionInsideSafeShape) && logFootholdRegion)
                         {
                             std::cerr << std::fixed << std::setprecision(3)
                                 << "[FootholdRegionValidate][WARN] leg=" << legName(leg)
@@ -929,6 +1380,10 @@ namespace ocs2::legged_robot
                                 << (polygonValidation.orientationConsistent ? "true" : "false")
                                 << " projection_inside_polygon="
                                 << (projectionInsidePolygon ? "true" : "false")
+                                << " projection_inside_safe_region="
+                                << (projectionInsideSafeShape ? "true" : "false")
+                                << " polygon_inside_safe_region="
+                                << (polygonInsideSafeShape ? "true" : "false")
                                 << " projection_terrain=(" << projection.positionInTerrainFrame.x()
                                 << "," << projection.positionInTerrainFrame.y() << ")"
                                 << " projection_world=(" << projection.positionInWorld.x()
@@ -938,6 +1393,155 @@ namespace ocs2::legged_robot
                                 << " note=no_fallback_no_polygon_replacement"
                                 << std::endl;
                         }
+
+                        const scalar_t swingStartTime = standStartTime;
+                        const scalar_t swingEndTime =
+                            i < eventTimes.size() ? eventTimes[i] : standFinalTime;
+                        const scalar_t swingDuration = swingEndTime - swingStartTime;
+                        const bool inCurrentSwing =
+                            swingDuration > 1e-6 && initTime >= swingStartTime && initTime < swingEndTime;
+                        const scalar_t swingProgress = inCurrentSwing
+                                                          ? std::clamp((initTime - swingStartTime) / swingDuration,
+                                                                       scalar_t(0.0), scalar_t(1.0))
+                                                          : scalar_t(0.0);
+                        const bool freezeAllowed =
+                            perceptiveFootholdSettings_.freezeLateSwingEnable && !useFixedRegion && inCurrentSwing;
+                        const bool currentPolygonUsableForFreeze =
+                            polygonValidation.valid && projectionInsidePolygon &&
+                            polygonInsideSafeShape && projectionInsideSafeShape &&
+                            projection.regionPtr != nullptr;
+                        auto& frozen = frozenFootholdConstraints_[leg];
+                        const bool useFrozen =
+                            frozen.active && frozen.phaseIndex == i &&
+                            initTime >= frozen.swingStartTime - perceptiveFootholdSettings_.freezeReleaseTolerance &&
+                            initTime <= frozen.swingEndTime + perceptiveFootholdSettings_.freezeReleaseTolerance;
+                        const scalar_t recomputedPolygonArea = polygonValidation.area;
+
+                        if (useFrozen)
+                        {
+                            safeFootholdRegions_[leg][i] = frozen.planarRegion;
+                            projection = frozen.projection;
+                            projection.regionPtr = &safeFootholdRegions_[leg][i];
+                            convexRegion = frozen.convexPolygon;
+                            selectedRegion = frozen.selectedRegionType;
+                            selectedRegionIndex = frozen.selectedRegionIndex;
+                            selectedStairStepIndex = frozen.stairStepIndex;
+                            selectedStairLane = frozen.stairLane;
+                            selectedStairTop = selectedRegion == "stair_top";
+                            if (selectedStairTop)
+                            {
+                                stairTopRegions_[leg][i] = safeFootholdRegions_[leg][i];
+                            }
+                            if (logFootholdRegion)
+                            {
+                                const auto frozenValidation = validateConvexPolygon(convexRegion);
+                                std::cerr << std::fixed << std::setprecision(3)
+                                    << "[FootholdFreeze] using frozen polygon"
+                                    << " leg=" << legName(leg)
+                                    << " leg_index=" << leg
+                                    << " time=" << initTime
+                                    << " phase_index=" << i
+                                    << " swing_start=" << frozen.swingStartTime
+                                    << " swing_end=" << frozen.swingEndTime
+                                    << " swing_progress=" << swingProgress
+                                    << " freeze_time=" << frozen.freezeTime
+                                    << " selected_region=" << selectedRegion
+                                    << " selected_step="
+                                    << (selectedStairStepIndex >= 0
+                                            ? std::to_string(selectedStairStepIndex + 1)
+                                            : std::string("none"))
+                                    << " stair_lane=" << selectedStairLane
+                                    << " frozen_polygon_area=" << frozenValidation.area
+                                    << " recomputed_polygon_area=" << recomputedPolygonArea
+                                    << " projection=(" << projection.positionInWorld.x() << ","
+                                    << projection.positionInWorld.y() << ","
+                                    << projection.positionInWorld.z() << ")"
+                                    << std::endl;
+                            }
+                        }
+                        else if (freezeAllowed &&
+                            swingProgress >= perceptiveFootholdSettings_.freezeStartRatio &&
+                            currentPolygonUsableForFreeze)
+                        {
+                            frozen.active = true;
+                            frozen.legIndex = leg;
+                            frozen.phaseIndex = i;
+                            frozen.swingStartTime = swingStartTime;
+                            frozen.swingEndTime = swingEndTime;
+                            frozen.freezeTime = initTime;
+                            frozen.nominalFootholdWorld = footPos;
+                            frozen.planarRegion = *projection.regionPtr;
+                            frozen.projection = projection;
+                            frozen.projection.regionPtr = &frozen.planarRegion;
+                            frozen.convexPolygon = convexRegion;
+                            frozen.selectedRegionType = selectedRegion;
+                            frozen.selectedRegionIndex = selectedRegionIndex;
+                            frozen.stairStepIndex = selectedStairStepIndex;
+                            frozen.stairLane = selectedStairLane;
+
+                            std::cerr << std::fixed << std::setprecision(3)
+                                << "[FootholdFreeze] freeze activated"
+                                << " leg=" << legName(leg)
+                                << " leg_index=" << leg
+                                << " phase_index=" << i
+                                << " time=" << initTime
+                                << " swing_start=" << swingStartTime
+                                << " swing_end=" << swingEndTime
+                                << " swing_progress=" << swingProgress
+                                << " freeze_time=" << frozen.freezeTime
+                                << " selected_region=" << selectedRegion
+                                << " selected_region_index=" << selectedRegionIndex
+                                << " selected_step="
+                                << (selectedStairStepIndex >= 0
+                                        ? std::to_string(selectedStairStepIndex + 1)
+                                        : std::string("none"))
+                                << " stair_lane=" << selectedStairLane
+                                << " projection=(" << projection.positionInWorld.x() << ","
+                                << projection.positionInWorld.y() << ","
+                                << projection.positionInWorld.z() << ")"
+                                << " projection_terrain=(" << projection.positionInTerrainFrame.x()
+                                << "," << projection.positionInTerrainFrame.y() << ")"
+                                << " polygon_area=" << polygonValidation.area
+                                << std::endl;
+                        }
+                        else if (freezeAllowed &&
+                            swingProgress >= perceptiveFootholdSettings_.freezeStartRatio &&
+                            !currentPolygonUsableForFreeze && logFootholdRegion)
+                        {
+                            std::cerr << std::fixed << std::setprecision(3)
+                                << "[FootholdFreeze][WARN] freeze skipped"
+                                << " leg=" << legName(leg)
+                                << " leg_index=" << leg
+                                << " phase_index=" << i
+                                << " time=" << initTime
+                                << " swing_start=" << swingStartTime
+                                << " swing_end=" << swingEndTime
+                                << " swing_progress=" << swingProgress
+                                << " selected_region=" << selectedRegion
+                                << " polygon_valid=" << (polygonValidation.valid ? "true" : "false")
+                                << " projection_inside_polygon="
+                                << (projectionInsidePolygon ? "true" : "false")
+                                << " projection_inside_safe_region="
+                                << (projectionInsideSafeShape ? "true" : "false")
+                                << " polygon_inside_safe_region="
+                                << (polygonInsideSafeShape ? "true" : "false")
+                                << " reason=invalid_current_polygon"
+                                << std::endl;
+                        }
+
+                        const auto committedPolygonValidation = validateConvexPolygon(convexRegion);
+                        const bool committedProjectionInsidePolygon =
+                            projection.regionPtr != nullptr &&
+                            isPointInsideConvexPolygon(projection.positionInTerrainFrame, convexRegion);
+                        const bool committedHasSafeShape = projection.regionPtr != nullptr &&
+                            !useFixedRegion &&
+                            !projection.regionPtr->boundaryWithInset.boundary.outer_boundary().is_empty();
+                        const bool committedPolygonInsideSafeShape = !committedHasSafeShape ||
+                            polygonInsideSafeRegion(convexRegion, projection.regionPtr->boundaryWithInset.boundary);
+                        const bool committedProjectionInsideSafeShape = !committedHasSafeShape ||
+                            convex_plane_decomposition::isInside(
+                                projection.positionInTerrainFrame,
+                                projection.regionPtr->boundaryWithInset.boundary);
 
                         feetProjections_[leg][i] = projection;
                         convexPolygons_[leg][i] = convexRegion;
@@ -956,25 +1560,42 @@ namespace ocs2::legged_robot
                                 << " candidate_search_enable="
                                 << (perceptiveFootholdSettings_.projectionCandidateSearchEnable ? "true" : "false")
                                 << " candidate_count=" << candidateCount
+                                << " freeze_enable="
+                                << (perceptiveFootholdSettings_.freezeLateSwingEnable ? "true" : "false")
+                                << " freeze_active=" << (frozen.active && frozen.phaseIndex == i ? "true" : "false")
+                                << " freeze_used=" << (useFrozen ? "true" : "false")
+                                << " freeze_start_ratio=" << perceptiveFootholdSettings_.freezeStartRatio
+                                << " swing_start=" << swingStartTime
+                                << " swing_end=" << swingEndTime
+                                << " swing_progress=" << swingProgress
+                                << " region_source="
+                                << (useFrozen ? "frozen_late_swing_constraint" : "recomputed")
                                 << " inside_step_footprint=" << (nominalStepFootprint.has_value() ? "true" : "false")
                                 << " candidate_step="
                                 << (nominalStepFootprint.has_value()
                                         ? std::to_string(nominalStepFootprint.value() + 1)
                                         : std::string("none"))
                                 << " selected_region=" << selectedRegion
+                                << " selected_region_index=" << selectedRegionIndex
                                 << " selected_step="
-                                << (selectedStairTop && candidateStep.has_value()
-                                        ? std::to_string(candidateStep.value() + 1)
+                                << (selectedStairTop && selectedStairStepIndex >= 0
+                                        ? std::to_string(selectedStairStepIndex + 1)
                                         : std::string("none"))
+                                << " stair_lane=" << selectedStairLane
                                 << " projection=(" << projection.positionInWorld.x() << ","
                                 << projection.positionInWorld.y() << ","
                                 << projection.positionInWorld.z() << ")"
                                 << " projection_terrain=(" << projection.positionInTerrainFrame.x() << ","
                                 << projection.positionInTerrainFrame.y() << ")"
                                 << " polygon_vertices=" << convexRegion.size()
-                                << " polygon_area=" << polygonValidation.area
+                                << " polygon_area=" << committedPolygonValidation.area
+                                << " recomputed_polygon_area=" << recomputedPolygonArea
                                 << " projection_inside_polygon="
-                                << (projectionInsidePolygon ? "true" : "false")
+                                << (committedProjectionInsidePolygon ? "true" : "false")
+                                << " projection_inside_safe_region="
+                                << (committedProjectionInsideSafeShape ? "true" : "false")
+                                << " polygon_inside_safe_region="
+                                << (committedPolygonInsideSafeShape ? "true" : "false")
                                 << " region_z="
                                 << (projection.regionPtr != nullptr
                                         ? projection.regionPtr->transformPlaneToWorld.translation().z()
@@ -984,11 +1605,23 @@ namespace ocs2::legged_robot
                             {
                                 std::cerr << " selected_candidate={" << selectedCandidateSummary << "}";
                             }
-                            if (candidateStep.has_value())
+                            if (!useFixedRegion && projection.regionPtr != nullptr)
+                            {
+                                const auto& safeShape = projection.regionPtr->boundaryWithInset.boundary;
+                                std::cerr
+                                    << " safe_outer_vertices=" << safeShape.outer_boundary().size()
+                                    << " safe_holes=" << std::distance(
+                                        safeShape.holes_begin(), safeShape.holes_end())
+                                    << " safe_area=" << polygonWithHolesArea(
+                                        safeShape.outer_boundary(), collectHoles(safeShape))
+                                    << " safe_outer_boundary=" << polygonToString(safeShape.outer_boundary());
+                            }
+                            if (selectedStairStepIndex >= 0)
                             {
                                 std::cerr
                                     << " stair_raw_region="
-                                    << stairRawBoundsToString(stairFootholdRegionSettings_, candidateStep.value(), leg);
+                                    << stairRawBoundsToString(stairFootholdRegionSettings_,
+                                                             static_cast<size_t>(selectedStairStepIndex), leg);
                             }
                             if (selectedStairTop)
                             {
@@ -1028,7 +1661,15 @@ namespace ocs2::legged_robot
                                 << projection.positionInWorld.z() << ")"
                                 << " projection_terrain=(" << projection.positionInTerrainFrame.x() << ","
                                 << projection.positionInTerrainFrame.y() << ")"
-                                << " polygon_area=" << polygonValidation.area
+                                << " polygon_area=" << committedPolygonValidation.area
+                                << " freeze_active=" << (frozen.active && frozen.phaseIndex == i ? "true" : "false")
+                                << " freeze_used=" << (useFrozen ? "true" : "false")
+                                << " region_source="
+                                << (useFrozen ? "frozen_late_swing_constraint" : "recomputed")
+                                << " projection_inside_safe_region="
+                                << (committedProjectionInsideSafeShape ? "true" : "false")
+                                << " polygon_inside_safe_region="
+                                << (committedPolygonInsideSafeShape ? "true" : "false")
                                 << " vertices=" << polygonToString(convexRegion);
                             if (fixedFootholdRegionsEnabled())
                             {
@@ -1043,6 +1684,11 @@ namespace ocs2::legged_robot
                         feetProjections_[leg][i] = feetProjections_[leg][i - 1];
                         convexPolygons_[leg][i] = convexPolygons_[leg][i - 1];
                         nominalFootholds_[leg][i] = nominalFootholds_[leg][i - 1];
+                        safeFootholdRegions_[leg][i] = safeFootholdRegions_[leg][i - 1];
+                        if (feetProjections_[leg][i].regionPtr == &safeFootholdRegions_[leg][i - 1])
+                        {
+                            feetProjections_[leg][i].regionPtr = &safeFootholdRegions_[leg][i];
+                        }
                     }
 
                     if (standStartTime < initTime && initTime < standFinalTime)
