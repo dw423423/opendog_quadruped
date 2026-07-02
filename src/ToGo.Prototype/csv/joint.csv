@@ -1,0 +1,19 @@
+Joint Name,Parent Link,Child Link,X,Y,Z,Roll,Pitch,Yaw,Joint Type,Axis X,Axis Y,Axis Z,Range Min,Range Max,Damping,Friction,Armature
+J_F_base_L0_body_front,F_base,L0_body_front,0,0,0.2,90,0,90,Fixed,0,0,0,0,0,0,0,0
+J1_waist,L0_body_front,L1_body_rear,0,0.03325000000000025,-0.08,0,0,0,Revolute,0,-1,0,-1.5,1.5,0.01368,0.1,0.1396
+Jfl1_hip_roll,L0_body_front,Lfl1_hip_roll,0.09,0.075,0.187,0,0,0,Revolute,0,0,1,-60,60,0.027,0.1,0.05
+Jfl2_hip_pitch,Lfl1_hip_roll,Lfl2_hip_pitch,0.026,0,0.073,0,0,0,Revolute,1,0,0,-90,90,0.027,0.1,0.05
+Jfl3_knee,Lfl2_hip_pitch,Lfl3_knee,0.10597,0,-0.3,0,0,0,Revolute,1,0,0,-10,90,0.027,0.1,0.05
+Jfl4_wheel,Lfl3_knee,Lfl4_wheel,0.0513,-0.18469843323170318,0.2364032333995923,0,0,0,Continuous,1,0,0,0,0,0.0138,0.1,0.01586
+Jfr1_hip_roll,L0_body_front,Lfr1_hip_roll,-0.09,0.075,0.187,0,0,0,Revolute,0,0,1,-60,60,0.027,0.1,0.05
+Jfr2_hip_pitch,Lfr1_hip_roll,Lfr2_hip_pitch,-0.026,0,0.073,0,0,0,Revolute,-1,0,0,-90,90,0.027,0.1,0.05
+Jfr3_knee,Lfr2_hip_pitch,Lfr3_knee,-0.106,0,-0.3,0,0,0,Revolute,-1,0,0,-90,10,0.027,0.1,0.05
+Jfr4_wheel,Lfr3_knee,Lfr4_wheel,-0.0513,-0.18469844259152562,0.2364032260868386,0,0,0,Continuous,-1,0,0,0,0,0.0138,0.1,0.01586
+Jrl1_hip_roll,L1_body_rear,Lrl1_hip_roll,0.09,0.04175,-0.107,0,0,0,Revolute,0,0,-1,-60,60,0.027,0.1,0.05
+Jrl2_hip_pitch,Lrl1_hip_roll,Lrl2_hip_pitch,0.026,0,-0.073,0,0,0,Revolute,1,0,0,-90,90,0.027,0.1,0.05
+Jrl3_knee,Lrl2_hip_pitch,Lrl3_knee,0.106,0,-0.3,0,0,0,Revolute,1,0,0,-10,90,0.027,0.1,0.05
+Jrl4_wheel,Lrl3_knee,Lrl4_wheel,0.0513,-0.18469844260381219,0.23640322607729902,0,0,0,Continuous,1,0,0,0,0,0.0138,0.1,0.01586
+Jrr1_hip_roll,L1_body_rear,Lrr1_hip_roll,-0.09,0.04175,-0.107,0,0,0,Revolute,0,0,-1,-60,60,0.027,0.1,0.05
+Jrr2_hip_pitch,Lrr1_hip_roll,Lrr2_hip_pitch,-0.026,0,-0.073,0,0,0,Revolute,-1,0,0,-90,90,0.027,0.1,0.05
+Jrr3_knee,Lrr2_hip_pitch,Lrr3_knee,-0.106,0,-0.3,0,0,0,Revolute,-1,0,0,-90,10,0.027,0.1,0.05
+Jrr4_wheel,Lrr3_knee,Lrr4_wheel,-0.05137,-0.18469844259152846,0.23640322608683617,0,0,0,Continuous,-1,0,0,0,0,0.0138,0.1,0.01586

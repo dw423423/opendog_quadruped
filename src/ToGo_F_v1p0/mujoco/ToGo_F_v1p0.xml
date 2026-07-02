@@ -1,0 +1,542 @@
+<mujoco model='XtellarRobotics/ToGo_F_v1p0'>
+    <compiler meshdir='../meshes' />
+
+    <default>
+        <default class="viscol">
+            <geom
+                type="mesh" rgba="0.7529411764705882 0.7529411764705882 0.7529411764705882 1.0"
+                contype="1" conaffinity="1" density="0"
+                solref="0.005 1" solimp="0.95 0.99 0.001 0.5 2"
+            />
+        </default>
+        <default class="rubber_foot">
+            <geom
+                type="mesh" rgba="0.149 0.149 0.149 1.0"
+                contype="1" conaffinity="1" density="0"
+                solref="0.005 1" solimp="0.95 0.99 0.001 0.5 2"
+                condim="6" friction="1.5 0.02 0.001"
+            />
+        </default>
+    </default>
+
+    <asset>
+        <mesh name='m0_torso'   file='m0_torso.stl'     scale='0.001 0.001 0.001' />
+        <!-- front left leg -->
+        <mesh name='mfl1_hipr'  file='mfl1_hipr.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mfl2_hipp'  file='mfl2_hipp.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mfl3_knee'  file='mfl3_knee.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mfl4_foot'  file='mfl4_foot.stl'    scale='0.001 0.001 0.001' />
+        <!-- front right leg -->
+        <mesh name='mfr1_hipr'  file='mfr1_hipr.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mfr2_hipp'  file='mfr2_hipp.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mfr3_knee'  file='mfr3_knee.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mfr4_foot'  file='mfr4_foot.stl'    scale='0.001 0.001 0.001' />
+        <!-- rear left leg -->
+        <mesh name='mrl1_hipr'  file='mrl1_hipr.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mrl2_hipp'  file='mrl2_hipp.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mrl3_knee'  file='mrl3_knee.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mrl4_foot'  file='mrl4_foot.stl'    scale='0.001 0.001 0.001' />
+        <!-- rear right leg -->
+        <mesh name='mrr1_hipr'  file='mrr1_hipr.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mrr2_hipp'  file='mrr2_hipp.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mrr3_knee'  file='mrr3_knee.stl'    scale='0.001 0.001 0.001' />
+        <mesh name='mrr4_foot'  file='mrr4_foot.stl'    scale='0.001 0.001 0.001' />
+    </asset>
+
+    <worldbody>
+        <body
+            name="F_base"
+            pos="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+            euler="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+        >
+            <body
+                name="L0_torso"
+                pos="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+                euler="-0.000000000e+00 0.000000000e+00 -0.000000000e+00"
+            >
+                <inertial
+                    pos="1.131547440e-03 9.841589053e-05 9.962489480e-02"
+                    mass="2.053698184e+01"
+                    fullinertia="1.302143322e+00 1.812976889e+00 1.957956105e+00 -6.713412039e-04 -2.586295210e-03 -1.006414943e-03"
+                />
+                <geom class="viscol" mesh="m0_torso" />
+
+                <site name="imu" pos="-5.329070518e-18 1.000000000e-02 1.370000000e-01" euler="2.566926813e-45 7.616140587e-14 -9.655420027e-31" />
+
+                <!-- front left leg -->
+                <body
+                    name="Lfl1_hipr"
+                    pos="2.450000000e-01 8.500000000e-02 9.500000000e-02"
+                    euler="-2.916100278e-14 6.568778923e-14 1.017597849e-14"
+                >
+                    <joint
+                        name="Jfl1_hipr"
+                        type="hinge"
+                        axis="1.0 2.771430217093039e-16 6.917208494746293e-16"
+                        range="-2.500000000e+01 3.500000000e+01"
+                        armature="0.0"
+                        damping="0.1"
+                        frictionloss="0.1"
+                    />
+                    <inertial
+                        pos="7.294080095e-02 3.134129647e-02 8.641283195e-04"
+                        mass="2.427425827e+00"
+                        fullinertia="2.546407316e-03 3.454061042e-03 3.163154640e-03 -4.352991409e-04 4.536943161e-05 -3.739923718e-05"
+                    />
+                    <geom class="viscol" mesh="mfl1_hipr" />
+
+                    <body
+                        name="Lfl2_hipp"
+                        pos="7.800000000e-02 7.100000000e-02 -2.220446049e-16"
+                        euler="1.240430669e-14 1.159600497e-13 4.537461782e-14"
+                    >
+                        <joint
+                            name="Jfl2_hipp"
+                            type="hinge"
+                            axis="1.358118865530937e-15 1.0 4.890402926265549e-16"
+                            range="-1.500000000e+02 1.500000000e+02"
+                            armature="0.0"
+                            damping="0.1"
+                            frictionloss="0.1"
+                        />
+                        <inertial
+                            pos="-2.532435474e-03 4.503664901e-02 -1.957866607e-01"
+                            mass="2.594676127e+00"
+                            fullinertia="2.316445599e-02 2.390815237e-02 2.153703155e-03 -8.660442215e-05 6.522667705e-04 2.473164296e-03"
+                        />
+                        <geom class="viscol" mesh="mfl2_hipp" />
+
+                        <body
+                            name="Lfl3_knee"
+                            pos="-3.885780586e-16 2.100000000e-02 -2.500000000e-01"
+                            euler="-4.406526822e-14 1.295324786e-11 3.933931606e-14"
+                        >
+                            <joint
+                                name="Jfl3_knee"
+                                type="hinge"
+                                axis="-2.044719456203864e-15 -1.0 -2.226590173875489e-16"
+                                range="-1.500000000e+02 1.500000000e+02"
+                                armature="0.0"
+                                damping="0.1"
+                                frictionloss="0.1"
+                            />
+                            <inertial
+                                pos="2.426553019e-02 -1.042500691e-02 -1.612786530e-01"
+                                mass="6.285872676e-01"
+                                fullinertia="1.035529753e-02 1.066728763e-02 4.117758631e-04 -6.811911601e-06 9.613583800e-04 4.584135263e-05"
+                            />
+                            <geom class="viscol" mesh="mfl3_knee" />
+
+                            <body
+                                name="Lfl4_foot"
+                                pos="3.416585254e-02 -1.000000000e-02 -3.148109135e-01"
+                                euler="6.806620063e-14 -1.305140614e-11 -1.006515831e-13"
+                            >
+                                <inertial
+                                    pos="2.705701718e-09 1.027797597e-09 -1.067091013e-02"
+                                    mass="1.177975572e-01"
+                                    fullinertia="2.331594324e-05 5.547111616e-05 6.418425544e-05 1.186275510e-19 -5.081617394e-12 2.987434825e-19"
+                                />
+                                <geom class="rubber_foot" mesh="mfl4_foot" />
+
+                            </body>
+                        </body>
+                    </body>
+                </body>
+
+                <!-- front right leg -->
+                <body
+                    name="Lfr1_hipr"
+                    pos="2.450000000e-01 -8.500000000e-02 9.500000000e-02"
+                    euler="3.702057494e-30 2.911141039e-14 5.726794922e-15"
+                >
+                    <joint
+                        name="Jfr1_hipr"
+                        type="hinge"
+                        axis="1.0 -9.995142697912995e-17 -1.74031065128076e-16"
+                        range="-2.500000000e+01 3.500000000e+01"
+                        armature="0.0"
+                        damping="0.1"
+                        frictionloss="0.1"
+                    />
+                    <inertial
+                        pos="7.294080098e-02 -3.134129651e-02 1.150631301e-03"
+                        mass="2.427425827e+00"
+                        fullinertia="2.545006116e-03 3.452659848e-03 3.163154635e-03 4.352991373e-04 4.054155031e-05 7.380179669e-06"
+                    />
+                    <geom class="viscol" mesh="mfr1_hipr" />
+
+                    <body
+                        name="Lfr2_hipp"
+                        pos="7.800000000e-02 -7.100000000e-02 3.330669074e-16"
+                        euler="8.267535953e-14 -1.082322097e-14 1.670046680e-14"
+                    >
+                        <joint
+                            name="Jfr2_hipp"
+                            type="hinge"
+                            axis="2.7470425553091673e-16 -1.0 1.4429572340436422e-15"
+                            range="-1.500000000e+02 1.500000000e+02"
+                            armature="0.0"
+                            damping="0.1"
+                            frictionloss="0.1"
+                        />
+                        <inertial
+                            pos="-2.800474550e-03 -4.503664905e-02 -1.957866605e-01"
+                            mass="2.594676132e+00"
+                            fullinertia="2.316445597e-02 2.390444345e-02 2.149994334e-03 4.572061837e-05 6.132553685e-04 -2.473164305e-03"
+                        />
+                        <geom class="viscol" mesh="mfr2_hipp" />
+
+                        <body
+                            name="Lfr3_knee"
+                            pos="3.885780586e-16 -2.100000000e-02 -2.500000000e-01"
+                            euler="-3.971814919e-12 -2.028398748e-12 -2.029364271e-12"
+                        >
+                            <joint
+                                name="Jfr3_knee"
+                                type="hinge"
+                                axis="-3.5804814802657345e-14 1.0000000000000002 6.926820635026868e-14"
+                                range="-1.500000000e+02 1.500000000e+02"
+                                armature="0.0"
+                                damping="0.1"
+                                frictionloss="0.1"
+                            />
+                            <inertial
+                                pos="2.426553040e-02 1.042500689e-02 -1.612786540e-01"
+                                mass="6.285872656e-01"
+                                fullinertia="1.035529743e-02 1.066728754e-02 4.117758823e-04 6.811917582e-06 9.613583732e-04 -4.584134837e-05"
+                            />
+                            <geom class="viscol" mesh="mfr3_knee" />
+
+                            <body
+                                name="Lfr4_foot"
+                                pos="3.416585253e-02 1.000000000e-02 -3.148109135e-01"
+                                euler="1.981504533e-12 -6.917706432e-14 2.199398956e-14"
+                            >
+                                <inertial
+                                    pos="2.705701718e-09 1.027797597e-09 -1.067091013e-02"
+                                    mass="1.177975572e-01"
+                                    fullinertia="2.331594324e-05 5.547111616e-05 6.418425544e-05 1.186275510e-19 -5.081617394e-12 2.987434825e-19"
+                                />
+                                <geom class="rubber_foot" mesh="mfr4_foot" />
+                            </body>
+                        </body>
+                    </body>
+                </body>
+
+                <!-- rear left leg -->
+                <body
+                    name="Lrl1_hipr"
+                    pos="-2.450000000e-01 8.500000000e-02 9.500000000e-02"
+                    euler="-3.180554681e-14 -2.911141039e-14 -3.880097062e-14"
+                >
+                    <joint
+                        name="Jrl1_hipr"
+                        type="hinge"
+                        axis="-1.0 2.322900115144491e-16 -1.7403106512806673e-16"
+                        range="-2.500000000e+01 3.500000000e+01"
+                        armature="0.0"
+                        damping="0.1"
+                        frictionloss="0.1"
+                    />
+                    <inertial
+                        pos="-7.294080098e-02 3.134129651e-02 1.150631301e-03"
+                        mass="2.427425827e+00"
+                        fullinertia="2.545006116e-03 3.452659848e-03 3.163154635e-03 4.352991373e-04 -4.054155031e-05 -7.380179669e-06"
+                    />
+                    <geom class="viscol" mesh="mrl1_hipr" />
+
+                    <body
+                        name="Lrl2_hipp"
+                        pos="-7.800000000e-02 7.100000000e-02 2.359223927e-16"
+                        euler="-1.823632533e-14 2.275030103e-14 3.849040046e-14"
+                    >
+                        <joint
+                            name="Jrl2_hipp"
+                            type="hinge"
+                            axis="1.0560183056831832e-16 1.0 3.182839204010178e-16"
+                            range="-1.500000000e+02 1.500000000e+02"
+                            armature="0.0"
+                            damping="0.1"
+                            frictionloss="0.1"
+                        />
+                        <inertial
+                            pos="2.800474550e-03 4.503664905e-02 -1.957866605e-01"
+                            mass="2.594676132e+00"
+                            fullinertia="2.316445597e-02 2.390444345e-02 2.149994334e-03 4.572061837e-05 -6.132553685e-04 2.473164305e-03"
+                        />
+                        <geom class="viscol" mesh="mrl2_hipp" />
+
+                        <body
+                            name="Lrl3_knee"
+                            pos="-1.387778781e-15 2.100000000e-02 -2.500000000e-01"
+                            euler="8.065490212e-15 1.590277341e-15 1.284241261e-13"
+                        >
+                            <joint
+                                name="Jrl3_knee"
+                                type="hinge"
+                                axis="-2.2360033679817915e-15 -1.0 2.4480386981526805e-16"
+                                range="-1.500000000e+02 1.500000000e+02"
+                                armature="0.0"
+                                damping="0.1"
+                                frictionloss="0.1"
+                            />
+                            <inertial
+                                pos="2.426553019e-02 -1.042500691e-02 -1.612786530e-01"
+                                mass="6.285872676e-01"
+                                fullinertia="1.035529753e-02 1.066728763e-02 4.117758631e-04 -6.811911601e-06 9.613583800e-04 4.584135263e-05"
+                            />
+                            <geom class="viscol" mesh="mrl3_knee" />
+
+                            <body
+                                name="Lrl4_foot"
+                                pos="3.416585253e-02 -1.000000000e-02 -3.148109135e-01"
+                                euler="4.461999108e-14 -7.951386704e-14 -8.837439110e-14"
+                            >
+                                <inertial
+                                    pos="2.705701718e-09 1.027797597e-09 -1.067091013e-02"
+                                    mass="1.177975572e-01"
+                                    fullinertia="2.331594324e-05 5.547111616e-05 6.418425544e-05 1.186275510e-19 -5.081617394e-12 2.987434825e-19"
+                                />
+                                <geom class="rubber_foot" mesh="mrl4_foot" />
+                            </body>
+                        </body>
+                    </body>
+                </body>
+
+                <!-- rear right leg -->
+                <body
+                    name="Lrr1_hipr"
+                    pos="-2.450000000e-01 -8.500000000e-02 9.500000000e-02"
+                    euler="-1.114232965e-14 3.449968324e-14 8.332873616e-14"
+                >
+                    <joint
+                        name="Jrr1_hipr"
+                        type="hinge"
+                        axis="-1.0 2.363855509269017e-15 -3.747593879802964e-16"
+                        range="-2.500000000e+01 3.500000000e+01"
+                        armature="0.0"
+                        damping="0.1"
+                        frictionloss="0.1"
+                    />
+                    <inertial
+                        pos="-7.294080095e-02 -3.134129647e-02 8.641283195e-04"
+                        mass="2.427425827e+00"
+                        fullinertia="2.546407316e-03 3.454061042e-03 3.163154640e-03 -4.352991409e-04 -4.536943161e-05 3.739923718e-05"
+                    />
+                    <geom class="viscol" mesh="mrr1_hipr" />
+
+                    <body
+                        name="Lrr2_hipp"
+                        pos="-7.800000000e-02 -7.100000000e-02 3.330669074e-16"
+                        euler="-2.366643485e-14 -4.797569036e-14 -1.544218069e-14"
+                    >
+                        <joint
+                            name="Jrr2_hipp"
+                            type="hinge"
+                            axis="-2.966654909885684e-16 -1.0 -4.014701557884302e-16"
+                            range="-1.500000000e+02 1.500000000e+02"
+                            armature="0.0"
+                            damping="0.1"
+                            frictionloss="0.1"
+                        />
+                        <inertial
+                            pos="2.532435474e-03 -4.503664901e-02 -1.957866607e-01"
+                            mass="2.594676127e+00"
+                            fullinertia="2.316445599e-02 2.390815237e-02 2.153703155e-03 -8.660442215e-05 -6.522667705e-04 -2.473164296e-03"
+                        />
+                        <geom class="viscol" mesh="mrr2_hipp" />
+
+                        <body
+                            name="Lrr3_knee"
+                            pos="-1.110223025e-15 -2.100000000e-02 -2.500000000e-01"
+                            euler="-1.911456637e-12 2.301767116e-14 -3.520990377e-14"
+                        >
+                            <joint
+                                name="Jrr3_knee"
+                                type="hinge"
+                                axis="4.030255561515937e-17 1.0000000000000002 -3.409086389591941e-14"
+                                range="-1.500000000e+02 1.500000000e+02"
+                                armature="0.0"
+                                damping="0.1"
+                                frictionloss="0.1"
+                            />
+                            <inertial
+                                pos="2.426553040e-02 1.042500689e-02 -1.612786540e-01"
+                                mass="6.285872656e-01"
+                                fullinertia="1.035529743e-02 1.066728754e-02 4.117758823e-04 6.811917582e-06 9.613583732e-04 -4.584134837e-05"
+                            />
+                            <geom class="viscol" mesh="mrr3_knee" />
+
+                            <body
+                                name="Lrr4_foot"
+                                pos="3.416585253e-02 1.000000000e-02 -3.148109135e-01"
+                                euler="1.948909010e-12 6.997220299e-14 7.062513170e-15"
+                            >
+                                <inertial
+                                    pos="2.705701718e-09 1.027797597e-09 -1.067091013e-02"
+                                    mass="1.177975572e-01"
+                                    fullinertia="2.331594324e-05 5.547111616e-05 6.418425544e-05 1.186275510e-19 -5.081617394e-12 2.987434825e-19"
+                                />
+                                <geom class="rubber_foot" mesh="mrr4_foot" />
+                            </body>
+                        </body>
+                    </body>
+                </body>
+
+            </body>
+        </body>
+    </worldbody>
+
+    <contact>
+        <!-- front left leg -->
+        <exclude body1="L0_torso"   body2="Lfl1_hipr" />
+        <exclude body1="Lfl1_hipr"  body2="Lfl2_hipp" />
+        <exclude body1="Lfl2_hipp"  body2="Lfl3_knee" />
+        <!-- front right leg -->
+        <exclude body1="L0_torso"   body2="Lfr1_hipr" />
+        <exclude body1="Lfr1_hipr"  body2="Lfr2_hipp" />
+        <exclude body1="Lfr2_hipp"  body2="Lfr3_knee" />
+        <!-- rear left leg -->
+        <exclude body1="L0_torso"   body2="Lrl1_hipr" />
+        <exclude body1="Lrl1_hipr"  body2="Lrl2_hipp" />
+        <exclude body1="Lrl2_hipp"  body2="Lrl3_knee" />
+        <!-- rear right leg -->
+        <exclude body1="L0_torso"   body2="Lrr1_hipr" />
+        <exclude body1="Lrr1_hipr"  body2="Lrr2_hipp" />
+        <exclude body1="Lrr2_hipp"  body2="Lrr3_knee" />
+    </contact>
+
+    <actuator>
+        <!-- front left leg -->
+        <motor
+            name="Rfl1_hipr" joint="Jfl1_hipr" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rfl2_hipp" joint="Jfl2_hipp" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rfl3_knee" joint="Jfl3_knee" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <!-- front right leg -->
+        <motor
+            name="Rfr1_hipr" joint="Jfr1_hipr" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rfr2_hipp" joint="Jfr2_hipp" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rfr3_knee" joint="Jfr3_knee" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <!-- rear left leg -->
+        <motor
+            name="Rrl1_hipr" joint="Jrl1_hipr" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rrl2_hipp" joint="Jrl2_hipp" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rrl3_knee" joint="Jrl3_knee" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <!-- rear right leg -->
+        <motor
+            name="Rrr1_hipr" joint="Jrr1_hipr" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rrr2_hipp" joint="Jrr2_hipp" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+        <motor
+            name="Rrr3_knee" joint="Jrr3_knee" gear="1"
+            ctrlrange="-1.200000000e+02 1.200000000e+02"
+            forcerange="-1.200000000e+02 1.200000000e+02"
+        />
+    </actuator>
+
+    <sensor>
+        <!-- joint position `q_J` -->
+
+        <!--- front left leg -->
+        <jointpos name="q_Jfl1_hipr" joint="Jfl1_hipr" noise='0.000' />
+        <jointpos name="q_Jfl2_hipp" joint="Jfl2_hipp" noise='0.000' />
+        <jointpos name="q_Jfl3_knee" joint="Jfl3_knee" noise='0.000' />
+        <!--- front right leg -->
+        <jointpos name="q_Jfr1_hipr" joint="Jfr1_hipr" noise='0.000' />
+        <jointpos name="q_Jfr2_hipp" joint="Jfr2_hipp" noise='0.000' />
+        <jointpos name="q_Jfr3_knee" joint="Jfr3_knee" noise='0.000' />
+        <!--- rear left leg -->
+        <jointpos name="q_Jrl1_hipr" joint="Jrl1_hipr" noise='0.000' />
+        <jointpos name="q_Jrl2_hipp" joint="Jrl2_hipp" noise='0.000' />
+        <jointpos name="q_Jrl3_knee" joint="Jrl3_knee" noise='0.000' />
+        <!--- rear right leg -->
+        <jointpos name="q_Jrr1_hipr" joint="Jrr1_hipr" noise='0.000' />
+        <jointpos name="q_Jrr2_hipp" joint="Jrr2_hipp" noise='0.000' />
+        <jointpos name="q_Jrr3_knee" joint="Jrr3_knee" noise='0.000' />
+
+        <!-- joint velocity `dq_J` -->
+
+        <!--- front left leg -->
+        <jointvel name="dq_Jfl1_hipr" joint="Jfl1_hipr" noise='0.000' />
+        <jointvel name="dq_Jfl2_hipp" joint="Jfl2_hipp" noise='0.000' />
+        <jointvel name="dq_Jfl3_knee" joint="Jfl3_knee" noise='0.000' />
+        <!--- front right leg -->
+        <jointvel name="dq_Jfr1_hipr" joint="Jfr1_hipr" noise='0.000' />
+        <jointvel name="dq_Jfr2_hipp" joint="Jfr2_hipp" noise='0.000' />
+        <jointvel name="dq_Jfr3_knee" joint="Jfr3_knee" noise='0.000' />
+        <!--- rear left leg -->
+        <jointvel name="dq_Jrl1_hipr" joint="Jrl1_hipr" noise='0.000' />
+        <jointvel name="dq_Jrl2_hipp" joint="Jrl2_hipp" noise='0.000' />
+        <jointvel name="dq_Jrl3_knee" joint="Jrl3_knee" noise='0.000' />
+        <!--- rear right leg -->
+        <jointvel name="dq_Jrr1_hipr" joint="Jrr1_hipr" noise='0.000' />
+        <jointvel name="dq_Jrr2_hipp" joint="Jrr2_hipp" noise='0.000' />
+        <jointvel name="dq_Jrr3_knee" joint="Jrr3_knee" noise='0.000' />
+
+        <!-- joint torque `tau_J` -->
+
+        <!--- front left leg -->
+        <jointactuatorfrc name="tau_Jfl1_hipr" joint="Jfl1_hipr" noise='0.000' />
+        <jointactuatorfrc name="tau_Jfl2_hipp" joint="Jfl2_hipp" noise='0.000' />
+        <jointactuatorfrc name="tau_Jfl3_knee" joint="Jfl3_knee" noise='0.000' />
+        <!--- front right leg -->
+        <jointactuatorfrc name="tau_Jfr1_hipr" joint="Jfr1_hipr" noise='0.000' />
+        <jointactuatorfrc name="tau_Jfr2_hipp" joint="Jfr2_hipp" noise='0.000' />
+        <jointactuatorfrc name="tau_Jfr3_knee" joint="Jfr3_knee" noise='0.000' />
+        <!--- rear left leg -->
+        <jointactuatorfrc name="tau_Jrl1_hipr" joint="Jrl1_hipr" noise='0.000' />
+        <jointactuatorfrc name="tau_Jrl2_hipp" joint="Jrl2_hipp" noise='0.000' />
+        <jointactuatorfrc name="tau_Jrl3_knee" joint="Jrl3_knee" noise='0.000' />
+        <!--- rear right leg -->
+        <jointactuatorfrc name="tau_Jrr1_hipr" joint="Jrr1_hipr" noise='0.000' />
+        <jointactuatorfrc name="tau_Jrr2_hipp" joint="Jrr2_hipp" noise='0.000' />
+        <jointactuatorfrc name="tau_Jrr3_knee" joint="Jrr3_knee" noise='0.000' />
+
+        <!-- IMU -->
+        <gyro           name="imu_gyro" site="imu" noise="0.000" />
+        <accelerometer  name="imu_accl" site="imu" noise="0.000" />
+        <framequat      name="imu_quat" objtype="site" objname="imu" noise="0.000" />
+        <framepos       name="gt_pos"   objtype="site" objname="imu" />
+        <framelinvel    name="gt_vel"   objtype="site" objname="imu" />
+    </sensor>
+</mujoco>
