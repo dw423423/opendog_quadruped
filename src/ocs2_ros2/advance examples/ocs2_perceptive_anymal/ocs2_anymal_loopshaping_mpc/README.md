@@ -59,3 +59,10 @@ ros2 launch ocs2_anymal_loopshaping_mpc perceptive_mpc_demo.launch.py terrain_na
 ```
 
 ![stones](../../../.images/perception_stones.png)
+
+## 3. ToGo Prototype perceptive MPC demo
+
+```bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_perceptive_mpc_demo.launch.py
+```
