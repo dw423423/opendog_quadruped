@@ -1,0 +1,270 @@
+model_settings
+{
+  algorithm                     SQP
+  recompileLibraries            true
+  robotName                     togo_prototype
+
+  analyticalInverseKinematics   true
+
+  frictionCoefficient           0.5
+  gripperForce                -25.0   ; [N] negative gripper force -> minimum force in normal direction
+  muFrictionCone                0.1
+  deltaFrictionCone             5.0
+
+  muFootPlacement               0.1   ; magnitude scaling
+  deltaFootPlacement            0.005  ; [m] distance from constraint boundary where the barrier becomes quadratic.
+
+  muSdf                         2.5
+  deltaSdf                      0.005
+
+  muJointsPosition              0.1
+  deltaJointsPosition           0.01
+  muJointsVelocity              0.1
+  deltaJointsVelocity           0.1
+  muJointsTorque                1.0
+  deltaJointsTorque             1.0
+
+  joint_lower_limits
+  {
+     (0,0)  -1.0471975512   ; Jfl1_hip_roll
+     (1,0)  -1.5707963268   ; Jfl2_hip_pitch
+     (2,0)  -0.1745329252   ; Jfl3_knee
+     (3,0)  -1.0471975512   ; Jfr1_hip_roll
+     (4,0)  -1.5707963268   ; Jfr2_hip_pitch
+     (5,0)  -1.5707963268   ; Jfr3_knee
+     (6,0)  -1.0471975512   ; Jrl1_hip_roll
+     (7,0)  -1.5707963268   ; Jrl2_hip_pitch
+     (8,0)  -0.1745329252   ; Jrl3_knee
+     (9,0)  -1.0471975512   ; Jrr1_hip_roll
+     (10,0) -1.5707963268   ; Jrr2_hip_pitch
+     (11,0) -1.5707963268   ; Jrr3_knee
+  }
+
+  joint_upper_limits
+  {
+     (0,0)   1.0471975512   ; Jfl1_hip_roll
+     (1,0)   1.5707963268   ; Jfl2_hip_pitch
+     (2,0)   1.5707963268   ; Jfl3_knee
+     (3,0)   1.0471975512   ; Jfr1_hip_roll
+     (4,0)   1.5707963268   ; Jfr2_hip_pitch
+     (5,0)   0.1745329252   ; Jfr3_knee
+     (6,0)   1.0471975512   ; Jrl1_hip_roll
+     (7,0)   1.5707963268   ; Jrl2_hip_pitch
+     (8,0)   1.5707963268   ; Jrl3_knee
+     (9,0)   1.0471975512   ; Jrr1_hip_roll
+     (10,0)  1.5707963268   ; Jrr2_hip_pitch
+     (11,0)  0.1745329252   ; Jrr3_knee
+  }
+
+  joint_velocity_limits
+  {
+     (0,0)   15.7079632679  ; Jfl1_hip_roll
+     (1,0)   15.7079632679  ; Jfl2_hip_pitch
+     (2,0)   15.7079632679  ; Jfl3_knee
+     (3,0)   15.7079632679  ; Jfr1_hip_roll
+     (4,0)   15.7079632679  ; Jfr2_hip_pitch
+     (5,0)   15.7079632679  ; Jfr3_knee
+     (6,0)   15.7079632679  ; Jrl1_hip_roll
+     (7,0)   15.7079632679  ; Jrl2_hip_pitch
+     (8,0)   15.7079632679  ; Jrl3_knee
+     (9,0)   15.7079632679  ; Jrr1_hip_roll
+     (10,0)  15.7079632679  ; Jrr2_hip_pitch
+     (11,0)  15.7079632679  ; Jrr3_knee
+  }
+
+  joint_torque_limits
+  {
+     (0,0)   150.0      ; Jfl1_hip_roll
+     (1,0)   150.0      ; Jfl2_hip_pitch
+     (2,0)   150.0      ; Jfl3_knee
+     (3,0)   150.0      ; Jfr1_hip_roll
+     (4,0)   150.0      ; Jfr2_hip_pitch
+     (5,0)   150.0      ; Jfr3_knee
+     (6,0)   150.0      ; Jrl1_hip_roll
+     (7,0)   150.0      ; Jrl2_hip_pitch
+     (8,0)   150.0      ; Jrl3_knee
+     (9,0)   150.0      ; Jrr1_hip_roll
+     (10,0)  150.0      ; Jrr2_hip_pitch
+     (11,0)  150.0      ; Jrr3_knee
+  }
+
+  swing_trajectory_settings
+  {
+    liftOffVelocity                   0.2
+    touchDownVelocity                -0.4
+    swingHeight                       0.08
+    errorGain                         20.0
+    swingTimeScale                    0.15
+    sdfMidswingMargin                 0.04
+    terrainMargin                     0.04
+    previousFootholdFactor            0.2
+    previousFootholdDeadzone          0.025
+    previousFootholdTimeDeadzone      0.30
+    referenceExtensionAfterHorizon    1.0
+    swingTrajectoryFromReference      0
+  }
+}
+
+terrainPlane
+{
+  position
+  {
+    x       0.0;
+    y       0.0;
+    z       0.0;
+  }
+  orientation
+  {
+    roll    0.0;
+    pitch   0.0;
+    yaw     0.0;
+  }
+}
+
+defaultModeSequenceTemplate
+{
+  modeSequence
+  {
+    [0]  STANCE
+  }
+  switchingTimes
+  {
+    [0]  0.0
+    [1]  1.0
+  }
+}
+
+; DDP settings
+ddp
+{
+  algorithm                       SLQ
+
+  nThreads                        4
+  threadPriority                  50
+
+  maxNumIterations                1
+  minRelCost                      1e-1
+  constraintTolerance             5e-3
+
+  displayInfo                     false
+  displayShortSummary             false
+  checkNumericalStability         false
+  debugPrintRollout               false
+
+  AbsTolODE                       1e-5
+  RelTolODE                       1e-3
+  maxNumStepsPerSecond            10000
+  timeStep                        0.015
+  backwardPassIntegratorType      ODE45
+
+  constraintPenaltyInitialValue   20.0
+  constraintPenaltyIncreaseRate   2.0
+
+  preComputeRiccatiTerms          true
+
+  useFeedbackPolicy               true
+
+  strategy                        LINE_SEARCH
+  lineSearch
+  {
+    minStepLength                 1e-4
+    maxStepLength                 1.0
+    hessianCorrectionStrategy     DIAGONAL_SHIFT
+    hessianCorrectionMultiple     1e-5
+  }
+}
+
+; Rollout settings
+rollout
+{
+  AbsTolODE                       1e-5
+  RelTolODE                       1e-3
+  timeStep                        0.015
+  integratorType                  ODE45
+  maxNumStepsPerSecond            10000
+  checkNumericalStability         false
+}
+
+mpc
+{
+  timeHorizon                     1.0
+  solutionTimeWindow              -1  ; [s]
+  coldStart                       false
+
+  debugPrint                      false
+
+  mpcDesiredFrequency             20  ; [Hz]
+  mrtDesiredFrequency             400 ; [Hz]
+}
+
+; initial state
+initialRobotState
+{
+   ; orientation
+   (0,0) 0.0     ; x
+   (1,0) 0.0     ; y
+   (2,0) 0.0     ; z
+
+   ; position
+   (3,0) 0.0     ; x
+   (4,0) 0.0     ; y
+   (5,0) 0.25    ; z
+
+   ; angular velocity
+   (6,0) 0.0    ; x
+   (7,0) 0.0    ; y
+   (8,0) 0.0    ; z
+
+   ; translational velocity
+   (9,0)  0.0    ; x
+   (10,0) 0.0    ; y
+   (11,0) 0.0    ; z
+
+   ; joint state
+   (12,0)  0.00  ; Jfl1_hip_roll
+   (13,0) -0.98  ; Jfl2_hip_pitch
+   (14,0)  1.48  ; Jfl3_knee
+   (15,0)  0.00  ; Jfr1_hip_roll
+   (16,0)  0.98  ; Jfr2_hip_pitch
+   (17,0) -1.48  ; Jfr3_knee
+   (18,0)  0.00  ; Jrl1_hip_roll
+   (19,0) -0.98  ; Jrl2_hip_pitch
+   (20,0)  1.48  ; Jrl3_knee
+   (21,0)  0.00  ; Jrr1_hip_roll
+   (22,0)  0.98  ; Jrr2_hip_pitch
+   (23,0) -1.48  ; Jrr3_knee
+}
+
+tracking_cost_weights
+{
+    ; Base
+    roll                   100.0;
+    pitch                  300.0;
+    yaw                    300.0;
+    base_position_x       1000.0;
+    base_position_y       1000.0;
+    base_position_z       1500.0;
+    base_angular_vel_x      10.0;
+    base_angular_vel_y      30.0;
+    base_angular_vel_z      30.0;
+    base_linear_vel_x       15.0;
+    base_linear_vel_y       15.0;
+    base_linear_vel_z       30.0;
+
+    ; Per leg
+    joint_position_HAA       2.0;
+    joint_position_HFE       2.0;
+    joint_position_KFE       1.0;
+    foot_position_x         30.0;
+    foot_position_y         30.0;
+    foot_position_z         30.0;
+    joint_velocity_HAA      0.02;
+    joint_velocity_HFE      0.02;
+    joint_velocity_KFE      0.01;
+    foot_velocity_x         15.0;
+    foot_velocity_y         15.0;
+    foot_velocity_z         15.0;
+    contact_force_x        0.001;
+    contact_force_y        0.001;
+    contact_force_z        0.001;
+}

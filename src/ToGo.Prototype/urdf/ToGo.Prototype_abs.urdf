@@ -180,6 +180,7 @@
             </geometry>
         </collision>
     </link>
+    <link name="Lfl4_wheel_contact" />
 
     <!-- front right leg -->
     <link name="Lfr1_hip_roll">
@@ -294,6 +295,7 @@
             </geometry>
         </collision>
     </link>
+    <link name="Lfr4_wheel_contact" />
 
     <!-- rear left leg -->
     <link name="Lrl1_hip_roll">
@@ -408,6 +410,7 @@
             </geometry>
         </collision>
     </link>
+    <link name="Lrl4_wheel_contact" />
 
     <!-- rear right leg -->
     <link name="Lrr1_hip_roll">
@@ -522,6 +525,7 @@
             </geometry>
         </collision>
     </link>
+    <link name="Lrr4_wheel_contact" />
 
 
     <!-- joint tags  -->
@@ -534,15 +538,12 @@
         <parent link="F_base" />
         <child link="L0_body_front" />
     </joint>
-    <joint name="J1_waist" type="revolute">
+    <joint name="J1_waist" type="fixed">
         <origin xyz="0.000000000e+00 3.325000000e-02 -8.000000000e-02"
                 rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
         />
         <parent link="L0_body_front" />
         <child link="L1_body_rear" />
-        <axis xyz="0.000000000e+00 -1.000000000e+00 0.000000000e+00" />
-        <dynamics damping="1.368000000e-02" friction="1.000000000e-01"/>
-        <limit lower="-0.026179938779914945" upper="0.026179938779914945" effort="97.0" velocity="6.283185307179586" />
     </joint>
 
     <!-- front left leg -->
@@ -576,15 +577,19 @@
         <dynamics damping="2.700000000e-02" friction="1.000000000e-01"/>
         <limit lower="-0.17453292519943295" upper="1.5707963267948966" effort="150.0" velocity="15.707963267948966" />
     </joint>
-    <joint name="Jfl4_wheel" type="continuous">
+    <joint name="Jfl4_wheel" type="fixed">
         <origin xyz="5.130000000e-02 -1.846984332e-01 2.364032334e-01"
                 rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
         />
         <parent link="Lfl3_knee" />
         <child link="Lfl4_wheel" />
-        <axis xyz="1.000000000e+00 0.000000000e+00 0.000000000e+00" />
-        <dynamics damping="1.380000000e-02" friction="1.000000000e-01"/>
-        <limit lower="0.0" upper="0.0" effort="40.0" velocity="33.510321638291124" />
+    </joint>
+    <joint name="Jfl4_wheel_contact" type="fixed">
+        <origin xyz="0.000000000e+00 -7.898243040e-02 4.314829848e-02"
+                rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+        />
+        <parent link="Lfl4_wheel" />
+        <child link="Lfl4_wheel_contact" />
     </joint>
 
     <!-- front right leg -->
@@ -618,15 +623,19 @@
         <dynamics damping="2.700000000e-02" friction="1.000000000e-01"/>
         <limit lower="-1.5707963267948966" upper="0.17453292519943295" effort="150.0" velocity="15.707963267948966" />
     </joint>
-    <joint name="Jfr4_wheel" type="continuous">
+    <joint name="Jfr4_wheel" type="fixed">
         <origin xyz="-5.130000000e-02 -1.846984426e-01 2.364032261e-01"
                 rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
         />
         <parent link="Lfr3_knee" />
         <child link="Lfr4_wheel" />
-        <axis xyz="-1.000000000e+00 0.000000000e+00 0.000000000e+00" />
-        <dynamics damping="1.380000000e-02" friction="1.000000000e-01"/>
-        <limit lower="0.0" upper="0.0" effort="40.0" velocity="33.510321638291124" />
+    </joint>
+    <joint name="Jfr4_wheel_contact" type="fixed">
+        <origin xyz="0.000000000e+00 -7.898243040e-02 4.314829848e-02"
+                rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+        />
+        <parent link="Lfr4_wheel" />
+        <child link="Lfr4_wheel_contact" />
     </joint>
 
     <!-- rear left leg -->
@@ -660,15 +669,19 @@
         <dynamics damping="2.700000000e-02" friction="1.000000000e-01"/>
         <limit lower="-0.17453292519943295" upper="1.5707963267948966" effort="150.0" velocity="15.707963267948966" />
     </joint>
-    <joint name="Jrl4_wheel" type="continuous">
+    <joint name="Jrl4_wheel" type="fixed">
         <origin xyz="5.130000000e-02 -1.846984426e-01 2.364032261e-01"
                 rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
         />
         <parent link="Lrl3_knee" />
         <child link="Lrl4_wheel" />
-        <axis xyz="1.000000000e+00 0.000000000e+00 0.000000000e+00" />
-        <dynamics damping="1.380000000e-02" friction="1.000000000e-01"/>
-        <limit lower="0.0" upper="0.0" effort="40.0" velocity="33.510321638291124" />
+    </joint>
+    <joint name="Jrl4_wheel_contact" type="fixed">
+        <origin xyz="0.000000000e+00 -7.898243040e-02 4.314829848e-02"
+                rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+        />
+        <parent link="Lrl4_wheel" />
+        <child link="Lrl4_wheel_contact" />
     </joint>
 
     <!-- rear left leg -->
@@ -702,15 +715,19 @@
         <dynamics damping="2.700000000e-02" friction="1.000000000e-01"/>
         <limit lower="-1.5707963267948966" upper="0.17453292519943295" effort="150.0" velocity="15.707963267948966" />
     </joint>
-    <joint name="Jrr4_wheel" type="continuous">
+    <joint name="Jrr4_wheel" type="fixed">
         <origin xyz="-5.137000000e-02 -1.846984426e-01 2.364032261e-01"
                 rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
         />
         <parent link="Lrr3_knee" />
         <child link="Lrr4_wheel" />
-        <axis xyz="-1.000000000e+00 0.000000000e+00 0.000000000e+00" />
-        <dynamics damping="1.380000000e-02" friction="1.000000000e-01"/>
-        <limit lower="0.0" upper="0.0" effort="40.0" velocity="33.510321638291124" />
+    </joint>
+    <joint name="Jrr4_wheel_contact" type="fixed">
+        <origin xyz="0.000000000e+00 -7.898243040e-02 4.314829848e-02"
+                rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
+        />
+        <parent link="Lrr4_wheel" />
+        <child link="Lrr4_wheel_contact" />
     </joint>
 
 </robot>

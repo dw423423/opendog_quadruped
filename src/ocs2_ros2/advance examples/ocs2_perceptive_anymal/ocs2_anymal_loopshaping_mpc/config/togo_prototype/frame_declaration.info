@@ -1,0 +1,64 @@
+root    F_base
+
+left_front {
+    root    Lfl1_hip_roll
+    tip     Lfl4_wheel_contact
+    joints {
+        [0] Jfl1_hip_roll
+        [1] Jfl2_hip_pitch
+        [2] Jfl3_knee
+    }
+}
+
+right_front {
+    root    Lfr1_hip_roll
+    tip     Lfr4_wheel_contact
+    joints {
+        [0] Jfr1_hip_roll
+        [1] Jfr2_hip_pitch
+        [2] Jfr3_knee
+    }
+}
+
+left_hind {
+    root    Lrl1_hip_roll
+    tip     Lrl4_wheel_contact
+    joints {
+        [0] Jrl1_hip_roll
+        [1] Jrl2_hip_pitch
+        [2] Jrl3_knee
+    }
+}
+
+right_hind {
+    root    Lrr1_hip_roll
+    tip     Lrr4_wheel_contact
+    joints {
+        [0] Jrr1_hip_roll
+        [1] Jrr2_hip_pitch
+        [2] Jrr3_knee
+    }
+}
+
+collisions {
+    collisionSpheres {
+        [0] "Lfl3_knee, 0.08"
+        [1] "Lfr3_knee, 0.08"
+        [2] "Lrl3_knee, 0.08"
+        [3] "Lrr3_knee, 0.08"
+    }
+    collisionOffsets {
+        (0,0) -0.055
+        (0,1) 0.0
+        (0,2) 0.0
+        (1,0) -0.055
+        (1,1) 0.0
+        (1,2) 0.0
+        (2,0) -0.055
+        (2,1) 0.0
+        (2,2) 0.0
+        (3,0) -0.055
+        (3,1) 0.0
+        (3,2) 0.0
+    }
+}

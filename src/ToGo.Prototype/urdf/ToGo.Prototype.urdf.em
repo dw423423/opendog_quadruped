@@ -34,24 +34,28 @@
     @(tag_link(link_name='Lfl2_hip_pitch',  mesh_path='lfl2_hip_pitch.stl', mesh_material='main', indent=1))
     @(tag_link(link_name='Lfl3_knee',       mesh_path='lfl3_knee.stl',      mesh_material='main', indent=1))
     @(tag_link(link_name='Lfl4_wheel',      mesh_path='lfl4_wheel.stl',     mesh_material='main', indent=1))
+    <link name='Lfl4_wheel_contact' />
 
     <!-- front right leg -->
     @(tag_link(link_name='Lfr1_hip_roll',   mesh_path='lfr1_hip_roll.stl',  mesh_material='main', indent=1))
     @(tag_link(link_name='Lfr2_hip_pitch',  mesh_path='lfr2_hip_pitch.stl', mesh_material='main', indent=1))
     @(tag_link(link_name='Lfr3_knee',       mesh_path='lfr3_knee.stl',      mesh_material='main', indent=1))
     @(tag_link(link_name='Lfr4_wheel',      mesh_path='lfr4_wheel.stl',     mesh_material='main', indent=1))
+    <link name='Lfr4_wheel_contact' />
 
     <!-- rear left leg -->
     @(tag_link(link_name='Lrl1_hip_roll',   mesh_path='lrl1_hip_roll.stl',  mesh_material='main', indent=1))
     @(tag_link(link_name='Lrl2_hip_pitch',  mesh_path='lrl2_hip_pitch.stl', mesh_material='main', indent=1))
     @(tag_link(link_name='Lrl3_knee',       mesh_path='lrl3_knee.stl',      mesh_material='main', indent=1))
     @(tag_link(link_name='Lrl4_wheel',      mesh_path='lrl4_wheel.stl',     mesh_material='main', indent=1))
+    <link name='Lrl4_wheel_contact' />
 
     <!-- rear right leg -->
     @(tag_link(link_name='Lrr1_hip_roll',   mesh_path='lrr1_hip_roll.stl',  mesh_material='main', indent=1))
     @(tag_link(link_name='Lrr2_hip_pitch',  mesh_path='lrr2_hip_pitch.stl', mesh_material='main', indent=1))
     @(tag_link(link_name='Lrr3_knee',       mesh_path='lrr3_knee.stl',      mesh_material='main', indent=1))
     @(tag_link(link_name='Lrr4_wheel',      mesh_path='lrr4_wheel.stl',     mesh_material='main', indent=1))
+    <link name='Lrr4_wheel_contact' />
 
 
     <!-- joint tags  -->
@@ -65,23 +69,43 @@
     @(tag_joint(joint_name='Jfl2_hip_pitch', indent=1))
     @(tag_joint(joint_name='Jfl3_knee', indent=1))
     @(tag_joint(joint_name='Jfl4_wheel', indent=1))
+    <joint name='Jfl4_wheel_contact' type='fixed'>
+        <origin xyz='0.0 -0.07898243040 0.04314829848' rpy='0.0 0.0 0.0' />
+        <parent link='Lfl4_wheel' />
+        <child link='Lfl4_wheel_contact' />
+    </joint>
 
     <!-- front right leg -->
     @(tag_joint(joint_name='Jfr1_hip_roll', indent=1))
     @(tag_joint(joint_name='Jfr2_hip_pitch', indent=1))
     @(tag_joint(joint_name='Jfr3_knee', indent=1))
     @(tag_joint(joint_name='Jfr4_wheel', indent=1))
+    <joint name='Jfr4_wheel_contact' type='fixed'>
+        <origin xyz='0.0 -0.07898243040 0.04314829848' rpy='0.0 0.0 0.0' />
+        <parent link='Lfr4_wheel' />
+        <child link='Lfr4_wheel_contact' />
+    </joint>
 
     <!-- rear left leg -->
     @(tag_joint(joint_name='Jrl1_hip_roll', indent=1))
     @(tag_joint(joint_name='Jrl2_hip_pitch', indent=1))
     @(tag_joint(joint_name='Jrl3_knee', indent=1))
     @(tag_joint(joint_name='Jrl4_wheel', indent=1))
+    <joint name='Jrl4_wheel_contact' type='fixed'>
+        <origin xyz='0.0 -0.07898243040 0.04314829848' rpy='0.0 0.0 0.0' />
+        <parent link='Lrl4_wheel' />
+        <child link='Lrl4_wheel_contact' />
+    </joint>
 
     <!-- rear left leg -->
     @(tag_joint(joint_name='Jrr1_hip_roll', indent=1))
     @(tag_joint(joint_name='Jrr2_hip_pitch', indent=1))
     @(tag_joint(joint_name='Jrr3_knee', indent=1))
     @(tag_joint(joint_name='Jrr4_wheel', indent=1))
+    <joint name='Jrr4_wheel_contact' type='fixed'>
+        <origin xyz='0.0 -0.07898243040 0.04314829848' rpy='0.0 0.0 0.0' />
+        <parent link='Lrr4_wheel' />
+        <child link='Lrr4_wheel_contact' />
+    </joint>
 
 </robot>

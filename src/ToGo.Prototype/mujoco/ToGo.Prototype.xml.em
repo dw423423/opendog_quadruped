@@ -194,24 +194,18 @@
         @(tag_motor(actuator_name='Rfl1_hip_roll',  indent=2))
         @(tag_motor(actuator_name='Rfl2_hip_pitch', indent=2))
         @(tag_motor(actuator_name='Rfl3_knee',      indent=2))
-        @(tag_motor(actuator_name='Rfl4_wheel',     indent=2))
         <!-- front right leg -->
         @(tag_motor(actuator_name='Rfr1_hip_roll',  indent=2))
         @(tag_motor(actuator_name='Rfr2_hip_pitch', indent=2))
         @(tag_motor(actuator_name='Rfr3_knee',      indent=2))
-        @(tag_motor(actuator_name='Rfr4_wheel',     indent=2))
         <!-- rear left leg -->
         @(tag_motor(actuator_name='Rrl1_hip_roll',  indent=2))
         @(tag_motor(actuator_name='Rrl2_hip_pitch', indent=2))
         @(tag_motor(actuator_name='Rrl3_knee',      indent=2))
-        @(tag_motor(actuator_name='Rrl4_wheel',     indent=2))
         <!-- rear right leg -->
         @(tag_motor(actuator_name='Rrr1_hip_roll',  indent=2))
         @(tag_motor(actuator_name='Rrr2_hip_pitch', indent=2))
         @(tag_motor(actuator_name='Rrr3_knee',      indent=2))
-        @(tag_motor(actuator_name='Rrr4_wheel',     indent=2))
-        <!-- waist -->
-        @(tag_motor(actuator_name='R1_waist',       indent=2))
     </actuator>
     
     <sensor>
@@ -220,84 +214,63 @@
         <jointpos name="q_Jfl1_hip_roll"  joint="Jfl1_hip_roll"     noise="@_jpos_noise" />
         <jointpos name="q_Jfl2_hip_pitch" joint="Jfl2_hip_pitch"    noise="@_jpos_noise" />
         <jointpos name="q_Jfl3_knee"      joint="Jfl3_knee"         noise="@_jpos_noise" />
-        <jointpos name="q_Jfl4_wheel"     joint="Jfl4_wheel" />
 
         <!-- front right leg -->
         <jointpos name="q_Jfr1_hip_roll"  joint="Jfr1_hip_roll"     noise="@_jpos_noise" />
         <jointpos name="q_Jfr2_hip_pitch" joint="Jfr2_hip_pitch"    noise="@_jpos_noise" />
         <jointpos name="q_Jfr3_knee"      joint="Jfr3_knee"         noise="@_jpos_noise" />
-        <jointpos name="q_Jfr4_wheel"     joint="Jfr4_wheel" />
 
         <!-- rear left leg -->
         <jointpos name="q_Jrl1_hip_roll"  joint="Jrl1_hip_roll"     noise="@_jpos_noise" />
         <jointpos name="q_Jrl2_hip_pitch" joint="Jrl2_hip_pitch"    noise="@_jpos_noise" />
         <jointpos name="q_Jrl3_knee"      joint="Jrl3_knee"         noise="@_jpos_noise" />
-        <jointpos name="q_Jrl4_wheel"     joint="Jrl4_wheel" />
 
         <!-- rear right leg -->
         <jointpos name="q_Jrr1_hip_roll"  joint="Jrr1_hip_roll"     noise="@_jpos_noise" />
         <jointpos name="q_Jrr2_hip_pitch" joint="Jrr2_hip_pitch"    noise="@_jpos_noise" />
         <jointpos name="q_Jrr3_knee"      joint="Jrr3_knee"         noise="@_jpos_noise" />
-        <jointpos name="q_Jrr4_wheel"     joint="Jrr4_wheel" />
-
-        <!-- waist -->
-        <jointpos name="q_J1_waist"       joint="J1_waist"          noise="@_jpos_noise" />
 
         <!-- joint velocity `dq_J` -->
         <!-- front left leg -->
         <jointvel name="dq_Jfl1_hip_roll"  joint="Jfl1_hip_roll"    noise="@_jvel_noise" />
         <jointvel name="dq_Jfl2_hip_pitch" joint="Jfl2_hip_pitch"   noise="@_jvel_noise" />
         <jointvel name="dq_Jfl3_knee"      joint="Jfl3_knee"        noise="@_jvel_noise" />
-        <jointvel name="dq_Jfl4_wheel"     joint="Jfl4_wheel"       noise="@_jvel_noise" />
 
         <!-- front right leg -->
         <jointvel name="dq_Jfr1_hip_roll"  joint="Jfr1_hip_roll"    noise="@_jvel_noise" />
         <jointvel name="dq_Jfr2_hip_pitch" joint="Jfr2_hip_pitch"   noise="@_jvel_noise" />
         <jointvel name="dq_Jfr3_knee"      joint="Jfr3_knee"        noise="@_jvel_noise" />
-        <jointvel name="dq_Jfr4_wheel"     joint="Jfr4_wheel"       noise="@_jvel_noise" />
 
         <!-- rear left leg -->
         <jointvel name="dq_Jrl1_hip_roll"  joint="Jrl1_hip_roll"    noise="@_jvel_noise" />
         <jointvel name="dq_Jrl2_hip_pitch" joint="Jrl2_hip_pitch"   noise="@_jvel_noise" />
         <jointvel name="dq_Jrl3_knee"      joint="Jrl3_knee"        noise="@_jvel_noise" />
-        <jointvel name="dq_Jrl4_wheel"     joint="Jrl4_wheel"       noise="@_jvel_noise" />
 
         <!-- rear right leg -->
         <jointvel name="dq_Jrr1_hip_roll"  joint="Jrr1_hip_roll"    noise="@_jvel_noise" />
         <jointvel name="dq_Jrr2_hip_pitch" joint="Jrr2_hip_pitch"   noise="@_jvel_noise" />
         <jointvel name="dq_Jrr3_knee"      joint="Jrr3_knee"        noise="@_jvel_noise" />
-        <jointvel name="dq_Jrr4_wheel"     joint="Jrr4_wheel"       noise="@_jvel_noise" />
-
-        <!-- waist -->
-        <jointvel name="dq_J1_waist"       joint="J1_waist"         noise="@_jvel_noise" />
 
         <!-- joint torque `tau_J` -->
         <!-- front left leg -->
         <jointactuatorfrc name="tau_Jfl1_hip_roll"  joint="Jfl1_hip_roll"   noise="@_jtor_noise" />
         <jointactuatorfrc name="tau_Jfl2_hip_pitch" joint="Jfl2_hip_pitch"  noise="@_jtor_noise" />
         <jointactuatorfrc name="tau_Jfl3_knee"      joint="Jfl3_knee"       noise="@_jtor_noise" />
-        <jointactuatorfrc name="tau_Jfl4_wheel"     joint="Jfl4_wheel"      noise="@_jtor_noise" />
 
         <!-- front right leg -->
         <jointactuatorfrc name="tau_Jfr1_hip_roll"  joint="Jfr1_hip_roll"   noise="@_jtor_noise"/>
         <jointactuatorfrc name="tau_Jfr2_hip_pitch" joint="Jfr2_hip_pitch"  noise="@_jtor_noise"/>
         <jointactuatorfrc name="tau_Jfr3_knee"      joint="Jfr3_knee"       noise="@_jtor_noise"/>
-        <jointactuatorfrc name="tau_Jfr4_wheel"     joint="Jfr4_wheel"      noise="@_jtor_noise"/>
 
         <!-- rear left leg -->
         <jointactuatorfrc name="tau_Jrl1_hip_roll"  joint="Jrl1_hip_roll"   noise="@_jtor_noise"/>
         <jointactuatorfrc name="tau_Jrl2_hip_pitch" joint="Jrl2_hip_pitch"  noise="@_jtor_noise"/>
         <jointactuatorfrc name="tau_Jrl3_knee"      joint="Jrl3_knee"       noise="@_jtor_noise"/>
-        <jointactuatorfrc name="tau_Jrl4_wheel"     joint="Jrl4_wheel"      noise="@_jtor_noise"/>
 
         <!-- rear right leg -->
         <jointactuatorfrc name="tau_Jrr1_hip_roll"  joint="Jrr1_hip_roll"   noise="@_jtor_noise"/>
         <jointactuatorfrc name="tau_Jrr2_hip_pitch" joint="Jrr2_hip_pitch"  noise="@_jtor_noise"/>
         <jointactuatorfrc name="tau_Jrr3_knee"      joint="Jrr3_knee"       noise="@_jtor_noise"/>
-        <jointactuatorfrc name="tau_Jrr4_wheel"     joint="Jrr4_wheel"      noise="@_jtor_noise"/>
-
-        <!-- waist -->
-        <jointactuatorfrc name="tau_J1_waist"       joint="J1_waist"        noise="@_jtor_noise"/>
 
         <!-- IMU -->
         <gyro           name="imu_gyro" site="imu" noise="@_gyro_noise" />

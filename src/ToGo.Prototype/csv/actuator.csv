@@ -1,18 +1,13 @@
 Actuator Name,Joint Name,Velocity Limit,Effort Limit
-R1_waist,J1_waist,60,97
 Rfl1_hip_roll,Jfl1_hip_roll,150,150
 Rfl2_hip_pitch,Jfl2_hip_pitch,150,150
 Rfl3_knee,Jfl3_knee,150,150
-Rfl4_wheel,Jfl4_wheel,320,40
 Rfr1_hip_roll,Jfr1_hip_roll,150,150
 Rfr2_hip_pitch,Jfr2_hip_pitch,150,150
 Rfr3_knee,Jfr3_knee,150,150
-Rfr4_wheel,Jfr4_wheel,320,40
 Rrl1_hip_roll,Jrl1_hip_roll,150,150
 Rrl2_hip_pitch,Jrl2_hip_pitch,150,150
 Rrl3_knee,Jrl3_knee,150,150
-Rrl4_wheel,Jrl4_wheel,320,40
 Rrr1_hip_roll,Jrr1_hip_roll,150,150
 Rrr2_hip_pitch,Jrr2_hip_pitch,150,150
 Rrr3_knee,Jrr3_knee,150,150
-Rrr4_wheel,Jrr4_wheel,320,40
