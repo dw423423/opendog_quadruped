@@ -66,3 +66,15 @@ ros2 launch ocs2_anymal_loopshaping_mpc perceptive_mpc_demo.launch.py terrain_na
 source ~/ros2_ws/install/setup.bash
 ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_perceptive_mpc_demo.launch.py
 ```
+
+By default this exports each computed motion dataset to a timestamped
+subdirectory under:
+
+```text
+/home/dw/workspace/opendog_ros2/date/
+```
+
+Each export contains CSV files for the motion arrays, `metadata.json` with
+names/shapes/units, `export_schema.json` with the AMP loader requirements,
+`scenario_metadata.json`, `robot.urdf`, a copy of the source terrain image, and
+CSV exports of the raw and filtered elevation maps.

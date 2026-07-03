@@ -3,7 +3,17 @@
 //
 
 #include <grid_map_ros/GridMapRosConverter.hpp>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <memory>
+#include <sstream>
+
+#include <grid_map_core/iterators/GridMapIterator.hpp>
 
 #include "rclcpp/rclcpp.hpp"
 
@@ -22,6 +32,8 @@
 #include <ocs2_anymal_commands/ReferenceExtrapolation.h>
 #include <ocs2_anymal_loopshaping_mpc/AnymalLoopshapingInterface.h>
 #include <ocs2_anymal_models/AnymalModels.h>
+#include <ocs2_anymal_models/QuadrupedCom.h>
+#include <ocs2_anymal_models/QuadrupedPinocchioMapping.h>
 #include <ocs2_quadruped_interface/QuadrupedVisualizer.h>
 #include <ocs2_quadruped_loopshaping_interface/QuadrupedLoopshapingMpc.h>
 #include <ocs2_switched_model_interface/core/MotionPhaseDefinition.h>
@@ -29,7 +41,698 @@
 #include <segmented_planes_terrain_model/SegmentedPlanesTerrainModel.h>
 #include <segmented_planes_terrain_model/SegmentedPlanesTerrainModelRos.h>
 
+// Pinocchio
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/multibody/data.hpp>
+#include <pinocchio/multibody/model.hpp>
+
 using namespace switched_model;
+
+namespace {
+
+std::string jsonEscape(const std::string& value) {
+  std::ostringstream out;
+  for (const char c : value) {
+    switch (c) {
+      case '\\':
+        out << "\\\\";
+        break;
+      case '"':
+        out << "\\\"";
+        break;
+      case '\n':
+        out << "\\n";
+        break;
+      case '\r':
+        out << "\\r";
+        break;
+      case '\t':
+        out << "\\t";
+        break;
+      default:
+        out << c;
+        break;
+    }
+  }
+  return out.str();
+}
+
+std::string jsonFloat(double value) {
+  std::ostringstream out;
+  out << std::setprecision(12) << value;
+  std::string text = out.str();
+  if (text.find_first_of(".eE") == std::string::npos) {
+    text += ".0";
+  }
+  return text;
+}
+
+void writeStringArrayJson(std::ofstream& file,
+                          const std::vector<std::string>& values) {
+  file << "[";
+  for (size_t i = 0; i < values.size(); ++i) {
+    if (i > 0) {
+      file << ", ";
+    }
+    file << "\"" << jsonEscape(values[i]) << "\"";
+  }
+  file << "]";
+}
+
+void writeJsonStringOrNull(std::ofstream& file, const std::string& value) {
+  if (value.empty()) {
+    file << "null";
+  } else {
+    file << "\"" << jsonEscape(value) << "\"";
+  }
+}
+
+void writeCsvValue(std::ofstream& file, double value) {
+  if (std::isfinite(value)) {
+    file << value;
+  } else {
+    file << "nan";
+  }
+}
+
+void writeCsvHeader(std::ofstream& file, const std::vector<std::string>& names,
+                    const std::vector<std::string>& suffixes) {
+  file << "time";
+  for (const auto& name : names) {
+    for (const auto& suffix : suffixes) {
+      file << "," << name << suffix;
+    }
+  }
+  file << "\n";
+}
+
+void writeGridMapLayerMatrixCsv(const grid_map::GridMap& map,
+                                const std::string& layer,
+                                const std::filesystem::path& filePath) {
+  if (!map.exists(layer)) {
+    throw std::runtime_error("Grid map layer '" + layer + "' does not exist.");
+  }
+
+  grid_map::GridMap mapCopy = map;
+  mapCopy.convertToDefaultStartIndex();
+  const auto& data = mapCopy.get(layer);
+
+  std::ofstream file(filePath);
+  if (!file) {
+    throw std::runtime_error("Unable to open " + filePath.string() +
+                             " for writing.");
+  }
+  file << std::setprecision(12);
+  for (int row = 0; row < data.rows(); ++row) {
+    for (int col = 0; col < data.cols(); ++col) {
+      if (col > 0) {
+        file << ",";
+      }
+      writeCsvValue(file, data(row, col));
+    }
+    file << "\n";
+  }
+}
+
+void writeGridMapLayerPointsCsv(const grid_map::GridMap& map,
+                                const std::string& layer,
+                                const std::filesystem::path& filePath) {
+  if (!map.exists(layer)) {
+    throw std::runtime_error("Grid map layer '" + layer + "' does not exist.");
+  }
+
+  grid_map::GridMap mapCopy = map;
+  mapCopy.convertToDefaultStartIndex();
+
+  std::ofstream file(filePath);
+  if (!file) {
+    throw std::runtime_error("Unable to open " + filePath.string() +
+                             " for writing.");
+  }
+  file << std::setprecision(12);
+  file << "row,col,x,y,z\n";
+  for (grid_map::GridMapIterator iterator(mapCopy); !iterator.isPastEnd();
+       ++iterator) {
+    const grid_map::Index index(*iterator);
+    grid_map::Position position;
+    mapCopy.getPosition(index, position);
+    file << index(0) << "," << index(1) << "," << position.x() << ","
+         << position.y() << ",";
+    writeCsvValue(file, mapCopy.at(layer, index));
+    file << "\n";
+  }
+}
+
+void writeGridMapInfoJson(std::ofstream& file, const grid_map::GridMap& map,
+                          const std::string& layer,
+                          const std::string& matrixFile,
+                          const std::string& pointsFile,
+                          const std::string& indent) {
+  grid_map::GridMap mapCopy = map;
+  mapCopy.convertToDefaultStartIndex();
+  const auto& data = mapCopy.get(layer);
+
+  file << indent << "{\n";
+  file << indent << "  \"layer\": \"" << jsonEscape(layer) << "\",\n";
+  file << indent << "  \"matrix_file\": \"" << jsonEscape(matrixFile)
+       << "\",\n";
+  file << indent << "  \"points_file\": \"" << jsonEscape(pointsFile)
+       << "\",\n";
+  file << indent << "  \"shape\": [" << data.rows() << ", " << data.cols()
+       << "],\n";
+  file << indent << "  \"resolution\": "
+       << jsonFloat(mapCopy.getResolution()) << ",\n";
+  file << indent << "  \"frame\": \"" << jsonEscape(mapCopy.getFrameId())
+       << "\",\n";
+  file << indent << "  \"center_position_xy\": ["
+       << jsonFloat(mapCopy.getPosition().x()) << ", "
+       << jsonFloat(mapCopy.getPosition().y()) << "],\n";
+  file << indent << "  \"length_xy\": [" << jsonFloat(mapCopy.getLength().x())
+       << ", " << jsonFloat(mapCopy.getLength().y()) << "]\n";
+  file << indent << "}";
+}
+
+std::vector<pinocchio::FrameIndex> collectBodyFrameIds(
+    const pinocchio::Model& model, std::vector<std::string>& bodyNames) {
+  std::vector<pinocchio::FrameIndex> bodyFrameIds;
+  for (pinocchio::FrameIndex frameId = 0; frameId < model.nframes; ++frameId) {
+    const auto& frame = model.frames[frameId];
+    const bool isLinkFrame = ((frame.type & pinocchio::FrameType::BODY) != 0);
+    if (!isLinkFrame || frame.name.empty() || frame.name == "universe") {
+      continue;
+    }
+    if (std::find(bodyNames.begin(), bodyNames.end(), frame.name) !=
+        bodyNames.end()) {
+      continue;
+    }
+    bodyNames.push_back(frame.name);
+    bodyFrameIds.push_back(frameId);
+  }
+  return bodyFrameIds;
+}
+
+Eigen::VectorXd getPinocchioConfiguration(
+    const pinocchio::Model& model,
+    const anymal::QuadrupedPinocchioMapping& pinocchioMapping,
+    const state_vector_t& state) {
+  Eigen::VectorXd configuration(model.nq);
+  configuration.setZero();
+
+  const base_coordinate_t basePose = getBasePose(state);
+  const joint_coordinate_t jointPositions = getJointPositions(state);
+  const Eigen::Quaternion<scalar_t> baseQuaternion =
+      quaternionBaseToOrigin<scalar_t>(getOrientation(basePose));
+
+  configuration.head<3>() = getPositionInOrigin(basePose);
+  configuration.segment<4>(3) = baseQuaternion.coeffs();
+  configuration.segment<JOINT_COORDINATE_SIZE>(7) =
+      pinocchioMapping.getPinocchioJointVector(jointPositions);
+  return configuration;
+}
+
+Eigen::VectorXd getPinocchioVelocity(
+    const pinocchio::Model& model,
+    const anymal::QuadrupedPinocchioMapping& pinocchioMapping,
+    const state_vector_t& state, const input_vector_t& input) {
+  Eigen::VectorXd velocity(model.nv);
+  velocity.setZero();
+
+  const base_coordinate_t baseLocalVelocities = getBaseLocalVelocities(state);
+  const joint_coordinate_t jointVelocities = getJointVelocities(input);
+
+  velocity.head<3>() = getLinearVelocity(baseLocalVelocities);
+  velocity.segment<3>(3) = getAngularVelocity(baseLocalVelocities);
+  velocity.segment<JOINT_COORDINATE_SIZE>(6) =
+      pinocchioMapping.getPinocchioJointVector(jointVelocities);
+  return velocity;
+}
+
+void writeMetadata(const std::filesystem::path& outputDir,
+                   const std::vector<std::string>& dofNames,
+                   const std::vector<std::string>& bodyNames, size_t numFrames,
+                   double fps) {
+  std::ofstream file(outputDir / "metadata.json");
+  if (!file) {
+    throw std::runtime_error("Unable to open metadata.json for writing.");
+  }
+
+  file << std::setprecision(12);
+  file << "{\n";
+  file << "  \"fps\": " << jsonFloat(fps) << ",\n";
+  file << "  \"num_frames\": " << numFrames << ",\n";
+  file << "  \"num_dofs\": " << dofNames.size() << ",\n";
+  file << "  \"num_bodies\": " << bodyNames.size() << ",\n";
+  file << "  \"dof_names\": ";
+  writeStringArrayJson(file, dofNames);
+  file << ",\n";
+  file << "  \"body_names\": ";
+  writeStringArrayJson(file, bodyNames);
+  file << ",\n";
+  file << "  \"shapes\": {\n";
+  file << "    \"dof_positions\": [" << numFrames << ", " << dofNames.size()
+       << "],\n";
+  file << "    \"dof_velocities\": [" << numFrames << ", " << dofNames.size()
+       << "],\n";
+  file << "    \"body_positions\": [" << numFrames << ", " << bodyNames.size()
+       << ", 3],\n";
+  file << "    \"body_rotations\": [" << numFrames << ", " << bodyNames.size()
+       << ", 4],\n";
+  file << "    \"body_linear_velocities\": [" << numFrames << ", "
+       << bodyNames.size() << ", 3],\n";
+  file << "    \"body_angular_velocities\": [" << numFrames << ", "
+       << bodyNames.size() << ", 3]\n";
+  file << "  },\n";
+  file << "  \"units\": {\n";
+  file << "    \"dof_positions\": \"rad\",\n";
+  file << "    \"dof_velocities\": \"rad/s\",\n";
+  file << "    \"body_positions\": \"m\",\n";
+  file << "    \"body_rotations\": \"unit_quaternion_wxyz\",\n";
+  file << "    \"body_linear_velocities\": \"m/s\",\n";
+  file << "    \"body_angular_velocities\": \"rad/s\"\n";
+  file << "  },\n";
+  file << "  \"quaternion_order\": \"wxyz\",\n";
+  file << "  \"frame\": \"world\",\n";
+  file << "  \"export_directory\": \""
+       << jsonEscape(outputDir.string()) << "\",\n";
+  file << "  \"amp_requirements\": {\n";
+  file << "    \"fps_dtype\": \"float\",\n";
+  file << "    \"dof_names_must_match\": \"robot.data.joint_names\",\n";
+  file << "    \"dof_names_order_must_match\": true,\n";
+  file << "    \"body_names_used_by\": [\"reference_body\", \"key_body_names\"],\n";
+  file << "    \"body_positions_are_world_absolute\": true,\n";
+  file << "    \"body_rotations_are_wxyz\": true\n";
+  file << "  },\n";
+  file << "  \"files\": {\n";
+  file << "    \"scenario_metadata\": \"scenario_metadata.json\",\n";
+  file << "    \"export_schema\": \"export_schema.json\",\n";
+  file << "    \"robot_urdf\": \"robot.urdf\",\n";
+  file << "    \"terrain_elevation\": \"terrain_elevation.csv\",\n";
+  file << "    \"terrain_elevation_points\": \"terrain_elevation_points.csv\",\n";
+  file << "    \"terrain_filtered_elevation\": \"terrain_filtered_elevation.csv\",\n";
+  file << "    \"terrain_filtered_elevation_points\": \"terrain_filtered_elevation_points.csv\",\n";
+  file << "    \"dof_positions\": \"dof_positions.csv\",\n";
+  file << "    \"dof_velocities\": \"dof_velocities.csv\",\n";
+  file << "    \"body_positions\": \"body_positions.csv\",\n";
+  file << "    \"body_rotations\": \"body_rotations.csv\",\n";
+  file << "    \"body_linear_velocities\": \"body_linear_velocities.csv\",\n";
+  file << "    \"body_angular_velocities\": \"body_angular_velocities.csv\"\n";
+  file << "  }\n";
+  file << "}\n";
+}
+
+void writeExportSchema(const std::filesystem::path& outputDir) {
+  std::ofstream file(outputDir / "export_schema.json");
+  if (!file) {
+    throw std::runtime_error("Unable to open export_schema.json for writing.");
+  }
+
+  file << "{\n";
+  file << "  \"format\": \"ocs2_amp_motion_csv_bundle\",\n";
+  file << "  \"description\": \"Motion data exported after perceptive MPC calculation for AMP/csv2npz conversion.\",\n";
+  file << "  \"fields\": {\n";
+  file << "    \"fps\": {\n";
+  file << "      \"storage\": \"metadata.json\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [],\n";
+  file << "      \"usage\": \"AMP computes dt = 1 / fps for interpolation sampling.\"\n";
+  file << "    },\n";
+  file << "    \"dof_names\": {\n";
+  file << "      \"storage\": \"metadata.json\",\n";
+  file << "      \"dtype\": \"string[]\",\n";
+  file << "      \"shape\": [\"N_dofs\"],\n";
+  file << "      \"requirement\": \"Must exactly match robot.data.joint_names, including order. motion_loader.get_dof_index(robot.data.joint_names) will assert on mismatch.\"\n";
+  file << "    },\n";
+  file << "    \"body_names\": {\n";
+  file << "      \"storage\": \"metadata.json\",\n";
+  file << "      \"dtype\": \"string[]\",\n";
+  file << "      \"shape\": [\"N_bodies\"],\n";
+  file << "      \"requirement\": \"Used by get_body_index(reference_body) and get_body_index(key_body_names). Names must match the AMP robot body names.\"\n";
+  file << "    },\n";
+  file << "    \"dof_positions\": {\n";
+  file << "      \"storage\": \"dof_positions.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"N_frames\", \"N_dofs\"],\n";
+  file << "      \"unit\": \"rad\",\n";
+  file << "      \"csv_layout\": \"First column is time, remaining columns follow dof_names.\"\n";
+  file << "    },\n";
+  file << "    \"dof_velocities\": {\n";
+  file << "      \"storage\": \"dof_velocities.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"N_frames\", \"N_dofs\"],\n";
+  file << "      \"unit\": \"rad/s\",\n";
+  file << "      \"note\": \"Exported from the MPC input trajectory. csv2npz may also recompute this from dof_positions with finite differences.\"\n";
+  file << "    },\n";
+  file << "    \"body_positions\": {\n";
+  file << "      \"storage\": \"body_positions.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"N_frames\", \"N_bodies\", 3],\n";
+  file << "      \"unit\": \"m\",\n";
+  file << "      \"frame\": \"world\",\n";
+  file << "      \"note\": \"Absolute world-frame positions computed with Pinocchio forward kinematics.\"\n";
+  file << "    },\n";
+  file << "    \"body_rotations\": {\n";
+  file << "      \"storage\": \"body_rotations.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"N_frames\", \"N_bodies\", 4],\n";
+  file << "      \"quaternion_order\": \"wxyz\",\n";
+  file << "      \"note\": \"World-frame body orientations computed with Pinocchio forward kinematics.\"\n";
+  file << "    },\n";
+  file << "    \"body_linear_velocities\": {\n";
+  file << "      \"storage\": \"body_linear_velocities.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"N_frames\", \"N_bodies\", 3],\n";
+  file << "      \"unit\": \"m/s\",\n";
+  file << "      \"frame\": \"world\"\n";
+  file << "    },\n";
+  file << "    \"body_angular_velocities\": {\n";
+  file << "      \"storage\": \"body_angular_velocities.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"N_frames\", \"N_bodies\", 3],\n";
+  file << "      \"unit\": \"rad/s\",\n";
+  file << "      \"frame\": \"world\"\n";
+  file << "    },\n";
+  file << "    \"robot_urdf\": {\n";
+  file << "      \"storage\": \"robot.urdf\",\n";
+  file << "      \"dtype\": \"text/xml\",\n";
+  file << "      \"usage\": \"Robot model used for Pinocchio forward kinematics and name matching.\"\n";
+  file << "    },\n";
+  file << "    \"terrain_source_image\": {\n";
+  file << "      \"storage\": \"terrain_source.<ext>\",\n";
+  file << "      \"dtype\": \"image\",\n";
+  file << "      \"usage\": \"Original terrain image selected by terrain_name.\"\n";
+  file << "    },\n";
+  file << "    \"terrain_elevation\": {\n";
+  file << "      \"storage\": \"terrain_elevation.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"rows\", \"cols\"],\n";
+  file << "      \"unit\": \"m\",\n";
+  file << "      \"frame\": \"world\",\n";
+  file << "      \"note\": \"Height map loaded from the terrain image after applying terrain_scale and zeroing height at world origin.\"\n";
+  file << "    },\n";
+  file << "    \"terrain_elevation_points\": {\n";
+  file << "      \"storage\": \"terrain_elevation_points.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"columns\": [\"row\", \"col\", \"x\", \"y\", \"z\"],\n";
+  file << "      \"unit\": \"m\",\n";
+  file << "      \"frame\": \"world\"\n";
+  file << "    },\n";
+  file << "    \"terrain_filtered_elevation\": {\n";
+  file << "      \"storage\": \"terrain_filtered_elevation.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"shape\": [\"rows\", \"cols\"],\n";
+  file << "      \"unit\": \"m\",\n";
+  file << "      \"frame\": \"world\",\n";
+  file << "      \"note\": \"Filtered/segmented map generated by the perception pipeline.\"\n";
+  file << "    },\n";
+  file << "    \"terrain_filtered_elevation_points\": {\n";
+  file << "      \"storage\": \"terrain_filtered_elevation_points.csv\",\n";
+  file << "      \"dtype\": \"float\",\n";
+  file << "      \"columns\": [\"row\", \"col\", \"x\", \"y\", \"z\"],\n";
+  file << "      \"unit\": \"m\",\n";
+  file << "      \"frame\": \"world\"\n";
+  file << "    }\n";
+  file << "  }\n";
+  file << "}\n";
+}
+
+void writeRobotAsset(const std::filesystem::path& outputDir,
+                     const std::string& urdfString) {
+  std::ofstream file(outputDir / "robot.urdf");
+  if (!file) {
+    throw std::runtime_error("Unable to open robot.urdf for writing.");
+  }
+  file << urdfString;
+  if (urdfString.empty() || urdfString.back() != '\n') {
+    file << "\n";
+  }
+}
+
+std::string copyTerrainSourceImage(const std::filesystem::path& outputDir,
+                                   const std::filesystem::path& sourcePath) {
+  if (sourcePath.empty() || !std::filesystem::exists(sourcePath)) {
+    return "";
+  }
+
+  std::string extension = sourcePath.extension().string();
+  if (extension.empty()) {
+    extension = ".dat";
+  }
+  const std::filesystem::path destination =
+      outputDir / ("terrain_source" + extension);
+  std::filesystem::copy_file(sourcePath, destination,
+                             std::filesystem::copy_options::overwrite_existing);
+  return destination.filename().string();
+}
+
+void writeScenarioMetadata(
+    const std::filesystem::path& outputDir, const std::string& configName,
+    const std::string& urdfSourcePath,
+    const std::filesystem::path& terrainSourcePath,
+    const std::string& terrainAssetFile, const std::string& terrainName,
+    double terrainScale, double forwardVelocity, double forwardDistance,
+    bool adaptReferenceToTerrain, const grid_map::GridMap& elevationMap,
+    const grid_map::GridMap& filteredMap, const std::string& elevationLayer) {
+  std::ofstream file(outputDir / "scenario_metadata.json");
+  if (!file) {
+    throw std::runtime_error(
+        "Unable to open scenario_metadata.json for writing.");
+  }
+
+  file << "{\n";
+  file << "  \"config_name\": \"" << jsonEscape(configName) << "\",\n";
+  file << "  \"robot_urdf\": \"robot.urdf\",\n";
+  file << "  \"urdf_source_path\": ";
+  writeJsonStringOrNull(file, urdfSourcePath);
+  file << ",\n";
+  file << "  \"terrain_name\": \"" << jsonEscape(terrainName) << "\",\n";
+  file << "  \"terrain_source_path\": \""
+       << jsonEscape(terrainSourcePath.string()) << "\",\n";
+  file << "  \"terrain_source_image\": ";
+  writeJsonStringOrNull(file, terrainAssetFile);
+  file << ",\n";
+  file << "  \"terrain_scale\": " << jsonFloat(terrainScale) << ",\n";
+  file << "  \"forward_velocity\": " << jsonFloat(forwardVelocity) << ",\n";
+  file << "  \"forward_distance\": " << jsonFloat(forwardDistance) << ",\n";
+  file << "  \"adapt_reference_to_terrain\": "
+       << (adaptReferenceToTerrain ? "true" : "false") << ",\n";
+  file << "  \"terrain_maps\": {\n";
+  file << "    \"elevation\": ";
+  writeGridMapInfoJson(file, elevationMap, elevationLayer,
+                       "terrain_elevation.csv",
+                       "terrain_elevation_points.csv", "    ");
+  if (filteredMap.exists(elevationLayer)) {
+    file << ",\n";
+    file << "    \"filtered_elevation\": ";
+    writeGridMapInfoJson(file, filteredMap, elevationLayer,
+                         "terrain_filtered_elevation.csv",
+                         "terrain_filtered_elevation_points.csv", "    ");
+    file << "\n";
+  } else {
+    file << "\n";
+  }
+  file << "  }\n";
+  file << "}\n";
+}
+
+void exportRobotAndTerrainAssets(
+    const std::filesystem::path& outputDir, const std::string& urdfString,
+    const std::string& urdfSourcePath, const std::string& configName,
+    const std::filesystem::path& terrainSourcePath,
+    const std::string& terrainName, double terrainScale, double forwardVelocity,
+    double forwardDistance, bool adaptReferenceToTerrain,
+    const grid_map::GridMap& elevationMap, const grid_map::GridMap& filteredMap,
+    const std::string& elevationLayer) {
+  writeRobotAsset(outputDir, urdfString);
+
+  const std::string terrainAssetFile =
+      copyTerrainSourceImage(outputDir, terrainSourcePath);
+
+  writeGridMapLayerMatrixCsv(elevationMap, elevationLayer,
+                             outputDir / "terrain_elevation.csv");
+  writeGridMapLayerPointsCsv(elevationMap, elevationLayer,
+                             outputDir / "terrain_elevation_points.csv");
+
+  if (filteredMap.exists(elevationLayer)) {
+    writeGridMapLayerMatrixCsv(filteredMap, elevationLayer,
+                               outputDir / "terrain_filtered_elevation.csv");
+    writeGridMapLayerPointsCsv(
+        filteredMap, elevationLayer,
+        outputDir / "terrain_filtered_elevation_points.csv");
+  }
+
+  writeScenarioMetadata(outputDir, configName, urdfSourcePath,
+                        terrainSourcePath, terrainAssetFile, terrainName,
+                        terrainScale, forwardVelocity, forwardDistance,
+                        adaptReferenceToTerrain, elevationMap, filteredMap,
+                        elevationLayer);
+}
+
+std::filesystem::path makeUniqueRunDirectory(
+    const std::filesystem::path& parentOutputDir) {
+  std::filesystem::create_directories(parentOutputDir);
+
+  const auto now = std::chrono::system_clock::now();
+  const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
+  std::tm localTime{};
+#if defined(_WIN32)
+  localtime_s(&localTime, &nowTime);
+#else
+  localtime_r(&nowTime, &localTime);
+#endif
+
+  std::ostringstream stamp;
+  stamp << std::put_time(&localTime, "%Y%m%d_%H%M%S");
+
+  for (int suffix = 0; suffix < 1000; ++suffix) {
+    std::ostringstream name;
+    name << stamp.str();
+    if (suffix > 0) {
+      name << "_" << std::setw(3) << std::setfill('0') << suffix;
+    }
+    const auto runDir = parentOutputDir / name.str();
+    if (std::filesystem::create_directory(runDir)) {
+      return runDir;
+    }
+  }
+
+  throw std::runtime_error("Unable to create a unique dataset run directory.");
+}
+
+void exportMotionDataset(
+    const ocs2::PrimalSolution& systemSolution, const std::string& urdfString,
+    const std::string& urdfSourcePath,
+    const anymal::FrameDeclaration& frameDeclaration,
+    const std::vector<std::string>& dofNames,
+    const std::filesystem::path& parentOutputDir, double fps,
+    const std::string& configName,
+    const std::filesystem::path& terrainSourcePath,
+    const std::string& terrainName, double terrainScale,
+    double forwardVelocity, double forwardDistance,
+    bool adaptReferenceToTerrain, const grid_map::GridMap& elevationMap,
+    const grid_map::GridMap& filteredMap, const std::string& elevationLayer) {
+  const size_t numFrames =
+      std::min({systemSolution.timeTrajectory_.size(),
+                systemSolution.stateTrajectory_.size(),
+                systemSolution.inputTrajectory_.size()});
+  if (numFrames == 0) {
+    throw std::runtime_error("No frames available for dataset export.");
+  }
+
+  const auto outputDir = makeUniqueRunDirectory(parentOutputDir);
+  exportRobotAndTerrainAssets(outputDir, urdfString, urdfSourcePath,
+                              configName, terrainSourcePath, terrainName,
+                              terrainScale, forwardVelocity, forwardDistance,
+                              adaptReferenceToTerrain, elevationMap,
+                              filteredMap, elevationLayer);
+
+  const auto pinocchioInterface =
+      anymal::createQuadrupedPinocchioInterfaceFromUrdfString(urdfString);
+  const auto& model = pinocchioInterface.getModel();
+  if (model.nq != 7 + JOINT_COORDINATE_SIZE ||
+      model.nv != 6 + JOINT_COORDINATE_SIZE) {
+    std::ostringstream error;
+    error << "Unexpected Pinocchio model size: nq=" << model.nq
+          << ", nv=" << model.nv << ". Expected nq="
+          << (7 + JOINT_COORDINATE_SIZE) << ", nv="
+          << (6 + JOINT_COORDINATE_SIZE) << ".";
+    throw std::runtime_error(error.str());
+  }
+
+  anymal::QuadrupedPinocchioMapping pinocchioMapping(frameDeclaration,
+                                                     pinocchioInterface);
+  std::vector<std::string> bodyNames;
+  const auto bodyFrameIds = collectBodyFrameIds(model, bodyNames);
+  pinocchio::Data data(model);
+
+  std::ofstream dofPositionsFile(outputDir / "dof_positions.csv");
+  std::ofstream dofVelocitiesFile(outputDir / "dof_velocities.csv");
+  std::ofstream bodyPositionsFile(outputDir / "body_positions.csv");
+  std::ofstream bodyRotationsFile(outputDir / "body_rotations.csv");
+  std::ofstream bodyLinearVelocitiesFile(outputDir /
+                                         "body_linear_velocities.csv");
+  std::ofstream bodyAngularVelocitiesFile(outputDir /
+                                          "body_angular_velocities.csv");
+  if (!dofPositionsFile || !dofVelocitiesFile || !bodyPositionsFile ||
+      !bodyRotationsFile || !bodyLinearVelocitiesFile ||
+      !bodyAngularVelocitiesFile) {
+    throw std::runtime_error("Unable to open one or more dataset CSV files.");
+  }
+
+  dofPositionsFile << std::setprecision(12);
+  dofVelocitiesFile << std::setprecision(12);
+  bodyPositionsFile << std::setprecision(12);
+  bodyRotationsFile << std::setprecision(12);
+  bodyLinearVelocitiesFile << std::setprecision(12);
+  bodyAngularVelocitiesFile << std::setprecision(12);
+
+  writeCsvHeader(dofPositionsFile, dofNames, {""});
+  writeCsvHeader(dofVelocitiesFile, dofNames, {""});
+  writeCsvHeader(bodyPositionsFile, bodyNames, {"_x", "_y", "_z"});
+  writeCsvHeader(bodyRotationsFile, bodyNames, {"_w", "_x", "_y", "_z"});
+  writeCsvHeader(bodyLinearVelocitiesFile, bodyNames, {"_x", "_y", "_z"});
+  writeCsvHeader(bodyAngularVelocitiesFile, bodyNames, {"_x", "_y", "_z"});
+
+  for (size_t k = 0; k < numFrames; ++k) {
+    const double time = systemSolution.timeTrajectory_[k];
+    const state_vector_t state =
+        systemSolution.stateTrajectory_[k].head(STATE_DIM);
+    const input_vector_t input =
+        systemSolution.inputTrajectory_[k].head(INPUT_DIM);
+    const joint_coordinate_t jointPositions = getJointPositions(state);
+    const joint_coordinate_t jointVelocities = getJointVelocities(input);
+
+    dofPositionsFile << time;
+    dofVelocitiesFile << time;
+    for (int j = 0; j < JOINT_COORDINATE_SIZE; ++j) {
+      dofPositionsFile << "," << jointPositions[j];
+      dofVelocitiesFile << "," << jointVelocities[j];
+    }
+    dofPositionsFile << "\n";
+    dofVelocitiesFile << "\n";
+
+    const Eigen::VectorXd q =
+        getPinocchioConfiguration(model, pinocchioMapping, state);
+    const Eigen::VectorXd v =
+        getPinocchioVelocity(model, pinocchioMapping, state, input);
+    pinocchio::forwardKinematics(model, data, q, v);
+    pinocchio::updateFramePlacements(model, data);
+
+    bodyPositionsFile << time;
+    bodyRotationsFile << time;
+    bodyLinearVelocitiesFile << time;
+    bodyAngularVelocitiesFile << time;
+    for (const auto frameId : bodyFrameIds) {
+      const auto& placement = data.oMf[frameId];
+      const Eigen::Quaterniond quaternion(placement.rotation());
+      const auto frameVelocity = pinocchio::getFrameVelocity(
+          model, data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
+
+      bodyPositionsFile << "," << placement.translation().x() << ","
+                        << placement.translation().y() << ","
+                        << placement.translation().z();
+      bodyRotationsFile << "," << quaternion.w() << "," << quaternion.x()
+                        << "," << quaternion.y() << "," << quaternion.z();
+      bodyLinearVelocitiesFile << "," << frameVelocity.linear().x() << ","
+                               << frameVelocity.linear().y() << ","
+                               << frameVelocity.linear().z();
+      bodyAngularVelocitiesFile << "," << frameVelocity.angular().x() << ","
+                                << frameVelocity.angular().y() << ","
+                                << frameVelocity.angular().z();
+    }
+    bodyPositionsFile << "\n";
+    bodyRotationsFile << "\n";
+    bodyLinearVelocitiesFile << "\n";
+    bodyAngularVelocitiesFile << "\n";
+  }
+
+  writeMetadata(outputDir, dofNames, bodyNames, numFrames, fps);
+  writeExportSchema(outputDir);
+  std::cout << "[PerceptiveMpcDemo] Dataset exported to "
+            << outputDir.string() << "\n";
+}
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
   const std::string path(__FILE__);
@@ -47,12 +750,21 @@ int main(int argc, char* argv[]) {
   rclcpp::Node::SharedPtr node =
       rclcpp::Node::make_shared(robotName + "anymal_perceptive_mpc_demo");
   node->declare_parameter("ocs2_anymal_description", "anymal");
-  if (const std::string urdfPath =
-          node->get_parameter("ocs2_anymal_description").as_string();
-      urdfPath != "anymal")
+  const std::string urdfPath =
+      node->get_parameter("ocs2_anymal_description").as_string();
+  if (urdfPath != "anymal")
     urdfString = anymal::getUrdfString(urdfPath);
   node->declare_parameter("config_name", "c_series");
   const std::string configName = node->get_parameter("config_name").as_string();
+  const std::string configFolder = taskFolder + configName;
+  const auto frameDeclaration =
+      anymal::frameDeclarationFromFile(configFolder + "/frame_declaration.info");
+  node->declare_parameter("export_dataset", false);
+  const bool exportDataset = node->get_parameter("export_dataset").as_bool();
+  node->declare_parameter("export_dataset_dir",
+                          "/tmp/ocs2_perceptive_mpc_dataset");
+  const std::string exportDatasetDir =
+      node->get_parameter("export_dataset_dir").as_string();
 
   convex_plane_decomposition::PlaneDecompositionPipeline::Config
       perceptionConfig;
@@ -79,8 +791,8 @@ int main(int argc, char* argv[]) {
           node.get(),
           "/ocs2_anymal_loopshaping_mpc_perceptive_demo/postprocessing/");
 
-  auto anymalInterface = anymal::getAnymalLoopshapingInterface(
-      urdfString, taskFolder + configName);
+  auto anymalInterface =
+      anymal::getAnymalLoopshapingInterface(urdfString, configFolder);
   const vector_t initSystemState =
       anymalInterface->getInitialState().head(STATE_DIM);
 
@@ -105,10 +817,12 @@ int main(int argc, char* argv[]) {
   const std::string frameId{"world"};
   node->declare_parameter("terrain_name", "step.png");
   std::string terrainFile = node->get_parameter("terrain_name").as_string();
+  const std::filesystem::path terrainSourcePath =
+      std::filesystem::path(terrainFolder) / terrainFile;
   node->declare_parameter("terrain_scale", 0.35);
   double heightScale = node->get_parameter("terrain_scale").as_double();
   auto gridMap = convex_plane_decomposition::loadGridmapFromImage(
-      terrainFolder + "/" + terrainFile, elevationLayer, frameId,
+      terrainSourcePath.string(), elevationLayer, frameId,
       perceptionConfig.preprocessingParameters.resolution, heightScale);
   gridMap.get(elevationLayer).array() -=
       gridMap.atPosition(elevationLayer, {0., 0.});
@@ -231,15 +945,15 @@ int main(int argc, char* argv[]) {
 
   // ====== Create MPC solver ========
   const auto mpcSettings =
-      ocs2::mpc::loadSettings(taskFolder + configName + "/task.info");
+      ocs2::mpc::loadSettings(configFolder + "/task.info");
 
   std::unique_ptr<ocs2::MPC_BASE> mpcPtr;
-  const auto sqpSettings = ocs2::sqp::loadSettings(taskFolder + configName +
-                                                   "/multiple_shooting.info");
+  const auto sqpSettings =
+      ocs2::sqp::loadSettings(configFolder + "/multiple_shooting.info");
   switch (anymalInterface->modelSettings().algorithm_) {
     case Algorithm::DDP: {
       const auto ddpSettings =
-          ocs2::ddp::loadSettings(taskFolder + configName + "/task.info");
+          ocs2::ddp::loadSettings(configFolder + "/task.info");
       mpcPtr = getDdpMpc(*anymalInterface, mpcSettings, ddpSettings);
       break;
     }
@@ -266,12 +980,12 @@ int main(int argc, char* argv[]) {
   }
 
   // run MPC till final time
+  constexpr scalar_t mpcSimulationFrequency = 100.0;
   ocs2::PrimalSolution closedLoopSolution;
   std::vector<ocs2::PerformanceIndex> performances;
   while (observation.time < finalTime) {
     std::cout << "t: " << observation.time << "\n";
     try {
-      scalar_t f_mpc = 100;
       // run MPC at current observation
       mpcInterface.setCurrentObservation(observation);
       mpcInterface.advanceMpc();
@@ -297,15 +1011,16 @@ int main(int argc, char* argv[]) {
                  observation.mode) {
         closedLoopSolution.modeSchedule_.modeSequence.push_back(
             observation.mode);
-        closedLoopSolution.modeSchedule_.eventTimes.push_back(observation.time -
-                                                              0.5 / f_mpc);
+        closedLoopSolution.modeSchedule_.eventTimes.push_back(
+            observation.time - 0.5 / mpcSimulationFrequency);
       }
 
       // perform a rollout
       scalar_array_t timeTrajectory;
       size_array_t postEventIndicesStock;
       vector_array_t stateTrajectory, inputTrajectory;
-      const scalar_t finalTime = observation.time + 1.0 / f_mpc;
+      const scalar_t finalTime =
+          observation.time + 1.0 / mpcSimulationFrequency;
       auto modeschedule = mpcInterface.getPolicy().modeSchedule_;
       rollout->run(observation.time, observation.state, finalTime,
                    mpcInterface.getPolicy().controllerPtr_.get(), modeschedule,
@@ -324,6 +1039,20 @@ int main(int argc, char* argv[]) {
   }
   const auto closedLoopSystemSolution = loopshapingToSystemPrimalSolution(
       closedLoopSolution, *anymalInterface->getLoopshapingDefinition());
+  if (exportDataset) {
+    try {
+      exportMotionDataset(closedLoopSystemSolution, urdfString, urdfPath,
+                          frameDeclaration, anymalInterface->getJointNames(),
+                          exportDatasetDir, mpcSimulationFrequency, configName,
+                          terrainSourcePath, terrainFile, heightScale,
+                          forwardVelocity, forwardDistance,
+                          adaptReferenceToTerrain, gridMap,
+                          planarTerrain.gridMap, elevationLayer);
+    } catch (const std::exception& e) {
+      RCLCPP_ERROR_STREAM(node->get_logger(),
+                          "Dataset export failed: " << e.what());
+    }
+  }
 
   // ====== Print result ==========
   const auto totalCost = std::accumulate(
