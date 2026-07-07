@@ -32,12 +32,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <ocs2_ddp/GaussNewtonDDP_MPC.h>
 #include <ocs2_mpcnet_core/control/MpcnetOnnxController.h>
-#include <ocs2_raisim_core/RaisimRollout.h>
-#include <ocs2_raisim_core/RaisimRolloutSettings.h>
 
 #include "ocs2_legged_robot_mpcnet/LeggedRobotMpcnetDefinition.h"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <memory>
+
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
+#include <ocs2_raisim_core/RaisimRollout.h>
+#include <ocs2_raisim_core/RaisimRolloutSettings.h>
+#endif
 
 namespace ocs2::legged_robot {
     LeggedRobotMpcnetInterface::LeggedRobotMpcnetInterface(size_t nDataGenerationThreads,
@@ -51,10 +54,6 @@ namespace ocs2::legged_robot {
                                      "/resources/anymal_c/urdf/anymal.urdf";
         const std::string referenceFile = ament_index_cpp::get_package_share_directory("ocs2_legged_robot") +
                                           "/config/command/reference.info";
-        const std::string raisimFile = ament_index_cpp::get_package_share_directory("ocs2_legged_robot_raisim") +
-                                       "/config/raisim.info";
-        const std::string resourcePath = ament_index_cpp::get_package_share_directory("ocs2_robotic_assets") +
-                                         "/resources/anymal_c/meshes";
 
         // set up MPC-Net rollout manager for data generation and policy evaluation
         std::vector<std::unique_ptr<MPC_BASE> > mpcPtrs;
@@ -80,6 +79,11 @@ namespace ocs2::legged_robot {
                 onnxEnvironmentPtr));
 
             if (raisim) {
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
+                const std::string raisimFile = ament_index_cpp::get_package_share_directory("ocs2_legged_robot_raisim") +
+                                               "/config/raisim.info";
+                const std::string resourcePath = ament_index_cpp::get_package_share_directory("ocs2_robotic_assets") +
+                                                 "/resources/anymal_c/meshes";
                 RaisimRolloutSettings rollout_settings(raisimFile, "rollout");
                 rollout_settings.portNumber_ += i;
 
@@ -118,6 +122,10 @@ namespace ocs2::legged_robot {
                         properties);
                     conversions_ptrs[i]->setTerrain(*terrainPtr);
                 }
+#else
+                throw std::runtime_error(
+                    "[LeggedRobotMpcnetInterface] RaiSim support was not built. Rebuild with ocs2_legged_robot_raisim available or set RAISIM: False.");
+#endif
             } else {
                 rolloutPtrs.push_back(
                     std::unique_ptr<RolloutBase>(interfaces_[i]->getRollout().clone()));

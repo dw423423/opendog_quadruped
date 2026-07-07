@@ -35,11 +35,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <memory>
 #include <ocs2_legged_robot_mpcnet/MpcnetDummy.h>
 #include "ocs2_legged_robot_mpcnet/LeggedRobotMpcnetDefinition.h"
+#include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_mpcnet_core/dummy/MpcnetDummyLoopRos.h>
+#include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
 #include <ocs2_ros_interfaces/mrt/MRT_ROS_Dummy_Loop.h>
 
 
 namespace ocs2::legged_robot {
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
     void MpcNetDummy::publishGridMap(const std::string &frameId) const {
         grid_map_msgs::msg::GridMap gridMapMsg;
 
@@ -78,6 +81,7 @@ namespace ocs2::legged_robot {
         gridMapMsg.data.push_back(dataArray);
         gridmapPublisher_->publish(gridMapMsg);
     }
+#endif
 
     MpcNetDummy::MpcNetDummy(const std::string &robot_name) : Node(robot_name + "_mpcnet_dummy", rclcpp::NodeOptions()
                                                                    .allow_undeclared_parameters(true)
@@ -119,6 +123,7 @@ namespace ocs2::legged_robot {
 
         // rollout
         if (useRaisim) {
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
             RCLCPP_INFO(get_logger(), "Using Raisim for rollout");
             gridmapPublisher_ = create_publisher<grid_map_msgs::msg::GridMap>("raisim_heightmap", 1);
 
@@ -154,6 +159,10 @@ namespace ocs2::legged_robot {
                 terrainPtr_ = std::unique_ptr<raisim::HeightMap>(raisimRolloutPtr->generateTerrain(properties));
                 publishGridMap("odom");
             }
+#else
+            throw std::runtime_error(
+                "[MpcNetDummy] RaiSim support was not built. Use default.launch.py with useRaisim:=false or rebuild with ocs2_legged_robot_raisim available.");
+#endif
         } else {
             RCLCPP_INFO(get_logger(), "Using dummy rollout");
             rollout_.reset(interface_->getRollout().clone());
@@ -166,9 +175,18 @@ namespace ocs2::legged_robot {
         const CentroidalModelPinocchioMapping mapping(interface_->getCentroidalModelInfo());
         PinocchioEndEffectorKinematics kinematics(interface_->getPinocchioInterface(), mapping,
                                                   interface_->modelSettings().contactNames3DoF);
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
+        if (useRaisim) {
         visualizer_ = std::make_shared<RaiSimVisualizer>(interface_->getPinocchioInterface(),
                                                          interface_->getCentroidalModelInfo(),
                                                          kinematics, shared_from_this());
+        } else
+#endif
+        {
+            visualizer_ = std::make_shared<LeggedRobotVisualizer>(interface_->getPinocchioInterface(),
+                                                                  interface_->getCentroidalModelInfo(),
+                                                                  kinematics, shared_from_this());
+        }
 
         RCLCPP_INFO(get_logger(), "MpcNetDummy initialized");
     }

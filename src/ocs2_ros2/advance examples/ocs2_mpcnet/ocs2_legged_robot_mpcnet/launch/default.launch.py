@@ -69,8 +69,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             name='raisimFile',
-            default_value=get_package_share_directory(
-                'ocs2_legged_robot_raisim') + '/config/raisim.info'
+            default_value=''
         ),
         DeclareLaunchArgument(
             name='resourcePath',

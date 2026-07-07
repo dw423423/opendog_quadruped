@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import xacro
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -7,9 +9,18 @@ from launch_ros.parameter_descriptions import ParameterValue
 from ament_index_python.packages import get_package_share_directory
 
 
+def find_workspace_path(relative_path):
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / relative_path
+        if candidate.exists():
+            return str(candidate)
+    raise FileNotFoundError(f"Could not find {relative_path} from {__file__}")
+
+
 def generate_launch_description():
     rviz_config_file = get_package_share_directory('ocs2_anymal_loopshaping_mpc') + "/config/rviz/demo_config.rviz"
-    urdf_model_path = "/home/dw/workspace/opendog_ros2/src/ToGo.Prototype/urdf/ToGo.Prototype_abs.urdf"
+    urdf_model_path = find_workspace_path("src/ToGo.Prototype/urdf/ToGo.Prototype_abs.urdf")
+    export_dataset_dir = find_workspace_path("date")
     robot_description = xacro.process_file(urdf_model_path).toxml()
 
     return LaunchDescription([
@@ -44,7 +55,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             name='export_dataset_dir',
-            default_value='/home/dw/workspace/opendog_ros2/date'
+            default_value=export_dataset_dir
         ),
         Node(
             package="robot_state_publisher",

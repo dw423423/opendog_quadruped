@@ -1,0 +1,10 @@
+prefix=/home/mm/opendog_quadruped/third_party/onnxruntime-local
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: onnxruntime
+Description: ONNX Runtime
+URL: https://github.com/microsoft/onnxruntime
+Version: 1.19.0
+Libs: -L${libdir} -lonnxruntime
+Cflags: -I${includedir}

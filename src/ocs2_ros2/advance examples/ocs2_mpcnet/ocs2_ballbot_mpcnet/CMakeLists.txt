@@ -11,6 +11,7 @@ if(NOT DEFINED PYTHON_INSTALL_DIR)
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(Python COMPONENTS Interpreter Development)
 find_package(pybind11 REQUIRED)
 find_package(ocs2_mpcnet_core REQUIRED)
@@ -34,6 +35,7 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC ${OCS2_CXX_DEFINITIONS})
 target_link_libraries(${PROJECT_NAME} PUBLIC
         ${ocs2_mpcnet_core_TARGETS}
         ${ocs2_ballbot_ros_TARGETS}
+        ament_index_cpp::ament_index_cpp
 )
 
 pybind11_add_module(BallbotMpcnetPybindings SHARED src/BallbotMpcnetPybindings.cpp)
@@ -69,7 +71,7 @@ install(DIRECTORY launch policy
         DESTINATION share/${PROJECT_NAME}/
 )
 
-ament_export_dependencies(ocs2_mpcnet_core ocs2_ballbot_ros)
+ament_export_dependencies(ocs2_mpcnet_core ocs2_ballbot_ros ament_index_cpp)
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_python_install_package(${PROJECT_NAME})
 

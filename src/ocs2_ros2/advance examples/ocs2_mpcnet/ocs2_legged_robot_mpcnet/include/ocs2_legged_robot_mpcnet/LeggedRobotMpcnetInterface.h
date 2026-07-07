@@ -30,8 +30,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <ocs2_legged_robot/LeggedRobotInterface.h>
-#include <ocs2_legged_robot_raisim/RaiSimConversions.h>
 #include <ocs2_mpcnet_core/MpcnetInterfaceBase.h>
+
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
+#include <ocs2_legged_robot_raisim/RaiSimConversions.h>
+#endif
 
 namespace ocs2::legged_robot {
     /**
@@ -62,7 +65,9 @@ namespace ocs2::legged_robot {
 
         // Legged robot interface pointers (keep alive for Pinocchio interface)
         std::vector<std::unique_ptr<LeggedRobotInterface> > interfaces_;
+#ifdef OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM
         // Legged robot RaiSim conversions pointers (keep alive for RaiSim rollout)
         std::vector<std::unique_ptr<LeggedRobotRaisimConversions> > conversions_ptrs;
+#endif
     };
 }

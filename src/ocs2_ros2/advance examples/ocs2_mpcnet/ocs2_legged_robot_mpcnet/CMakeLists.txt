@@ -13,10 +13,12 @@ endif()
 list(PREPEND CMAKE_PREFIX_PATH "$ENV{HOME}/raisimLib/raisim/linux")
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(Python COMPONENTS Interpreter Development)
 find_package(pybind11 REQUIRED)
 find_package(ocs2_mpcnet_core REQUIRED)
-find_package(ocs2_legged_robot_raisim REQUIRED)
+find_package(ocs2_legged_robot_ros REQUIRED)
+find_package(ocs2_legged_robot_raisim QUIET)
 
 add_library(${PROJECT_NAME}
         src/LeggedRobotMpcnetDefinition.cpp
@@ -35,8 +37,14 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC ${OCS2_CXX_DEFINITIONS})
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
         ${ocs2_mpcnet_core_TARGETS}
-        ${ocs2_legged_robot_raisim_TARGETS}
+        ${ocs2_legged_robot_ros_TARGETS}
+        ament_index_cpp::ament_index_cpp
 )
+
+if(ocs2_legged_robot_raisim_FOUND)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC OCS2_LEGGED_ROBOT_MPCNET_HAS_RAISIM)
+    target_link_libraries(${PROJECT_NAME} PUBLIC ${ocs2_legged_robot_raisim_TARGETS})
+endif()
 
 pybind11_add_module(LeggedRobotMpcnetPybindings SHARED src/LeggedRobotMpcnetPybindings.cpp)
 target_link_libraries(LeggedRobotMpcnetPybindings PRIVATE ${PROJECT_NAME})
@@ -71,7 +79,10 @@ install(DIRECTORY launch policy
         DESTINATION share/${PROJECT_NAME}/
 )
 
-ament_export_dependencies(ocs2_mpcnet_core ocs2_legged_robot_raisim)
+ament_export_dependencies(ocs2_mpcnet_core ocs2_legged_robot_ros ament_index_cpp)
+if(ocs2_legged_robot_raisim_FOUND)
+    ament_export_dependencies(ocs2_legged_robot_raisim)
+endif()
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_python_install_package(${PROJECT_NAME})
 

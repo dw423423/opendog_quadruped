@@ -25,7 +25,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/l0_body_front.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/l0_body_front.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -34,7 +34,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/l0_body_front.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/l0_body_front.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -53,7 +53,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/l1_body_rear.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/l1_body_rear.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -62,7 +62,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/l1_body_rear.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/l1_body_rear.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -83,7 +83,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -92,7 +92,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -111,7 +111,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -120,7 +120,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -139,7 +139,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -148,7 +148,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -167,7 +167,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -176,7 +176,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -198,7 +198,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -207,7 +207,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -226,7 +226,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -235,7 +235,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -254,7 +254,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -263,7 +263,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -282,7 +282,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -291,7 +291,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lfr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lfr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -313,7 +313,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -322,7 +322,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -341,7 +341,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -350,7 +350,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -369,7 +369,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -378,7 +378,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -397,7 +397,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -406,7 +406,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrl4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -428,7 +428,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -437,7 +437,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr1_hip_roll.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -456,7 +456,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -465,7 +465,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr2_hip_pitch.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -484,7 +484,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -493,7 +493,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr3_knee.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
@@ -512,7 +512,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
             <material name="main" />
         </visual>
@@ -521,7 +521,7 @@
                     rpy="0.000000000e+00 0.000000000e+00 0.000000000e+00"
             />
             <geometry>
-                <mesh filename="file:///home/dw/workspace/opendog_ros2/src/ToGo.Prototype/meshes/lrr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
+                <mesh filename="file:///home/mm/opendog_quadruped/src/ToGo.Prototype/meshes/lrr4_wheel.stl" scale="1.000000000e-03 1.000000000e-03 1.000000000e-03" />
             </geometry>
         </collision>
     </link>
