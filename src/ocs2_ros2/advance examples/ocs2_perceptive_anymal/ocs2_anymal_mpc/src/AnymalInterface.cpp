@@ -24,6 +24,8 @@ namespace anymal
                                                                            settings,
                                                                            const FrameDeclaration& frameDeclaration)
     {
+        settings.swingTrajectoryPlannerSettings_.contactRadii = getContactRadii(frameDeclaration);
+
         std::unique_ptr<switched_model::InverseKinematicsModelBase> invKin{nullptr};
         if (settings.modelSettings_.analyticalInverseKinematics_)
         {

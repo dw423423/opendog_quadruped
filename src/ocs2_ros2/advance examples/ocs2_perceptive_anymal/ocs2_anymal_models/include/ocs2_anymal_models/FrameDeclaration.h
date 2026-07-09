@@ -19,6 +19,7 @@ struct LimbFrames {
   std::string root;
   std::string tip;
   std::vector<std::string> joints;
+  switched_model::scalar_t contactRadius = 0.0;
 };
 
 struct FrameDeclaration {
@@ -28,6 +29,8 @@ struct FrameDeclaration {
 };
 
 std::vector<std::string> getJointNames(const FrameDeclaration& frameDeclaration);
+
+switched_model::feet_array_t<switched_model::scalar_t> getContactRadii(const FrameDeclaration& frameDeclaration);
 
 LimbFrames limbFramesFromFile(const std::string& file, const std::string& field);
 

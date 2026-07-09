@@ -17,11 +17,23 @@ std::vector<std::string> getJointNames(const FrameDeclaration& frameDeclaration)
   return jointNames;
 }
 
+switched_model::feet_array_t<switched_model::scalar_t> getContactRadii(const FrameDeclaration& frameDeclaration) {
+  switched_model::feet_array_t<switched_model::scalar_t> contactRadii{};
+  for (int i = 0; i < switched_model::NUM_CONTACT_POINTS; ++i) {
+    contactRadii[i] = frameDeclaration.legs[i].contactRadius;
+  }
+  return contactRadii;
+}
+
 LimbFrames limbFramesFromFile(const std::string& file, const std::string& field) {
   LimbFrames frames;
   ocs2::loadData::loadCppDataType(file, field + ".root", frames.root);
   ocs2::loadData::loadCppDataType(file, field + ".tip", frames.tip);
   ocs2::loadData::loadStdVector(file, field + ".joints", frames.joints, false);
+
+  boost::property_tree::ptree pt;
+  boost::property_tree::read_info(file, pt);
+  ocs2::loadData::loadPtreeValue(pt, frames.contactRadius, field + ".contactRadius", false);
   return frames;
 }
 

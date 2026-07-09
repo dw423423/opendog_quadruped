@@ -2,7 +2,8 @@ root    F_base
 
 left_front {
     root    Lfl1_hip_roll
-    tip     Lfl4_wheel_contact
+    tip     Lfl4_wheel
+    contactRadius 0.09
     joints {
         [0] Jfl1_hip_roll
         [1] Jfl2_hip_pitch
@@ -12,7 +13,8 @@ left_front {
 
 right_front {
     root    Lfr1_hip_roll
-    tip     Lfr4_wheel_contact
+    tip     Lfr4_wheel
+    contactRadius 0.09
     joints {
         [0] Jfr1_hip_roll
         [1] Jfr2_hip_pitch
@@ -22,7 +24,8 @@ right_front {
 
 left_hind {
     root    Lrl1_hip_roll
-    tip     Lrl4_wheel_contact
+    tip     Lrl4_wheel
+    contactRadius 0.09
     joints {
         [0] Jrl1_hip_roll
         [1] Jrl2_hip_pitch
@@ -32,7 +35,8 @@ left_hind {
 
 right_hind {
     root    Lrr1_hip_roll
-    tip     Lrr4_wheel_contact
+    tip     Lrr4_wheel
+    contactRadius 0.09
     joints {
         [0] Jrr1_hip_roll
         [1] Jrr2_hip_pitch

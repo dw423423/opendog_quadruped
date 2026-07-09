@@ -17,6 +17,18 @@
 #include <ocs2_core/misc/LoadData.h>
 
 namespace switched_model {
+    namespace {
+        TerrainPlane terrainPlaneForContactFrame(TerrainPlane terrainPlane, scalar_t contactRadius) {
+            terrainPlane.positionInWorld += contactRadius * surfaceNormalInWorld(terrainPlane);
+            return terrainPlane;
+        }
+
+        ConvexTerrain terrainForContactFrame(ConvexTerrain terrain, scalar_t contactRadius) {
+            terrain.plane = terrainPlaneForContactFrame(std::move(terrain.plane), contactRadius);
+            return terrain;
+        }
+    } // namespace
+
     SwingTrajectoryPlanner::SwingTrajectoryPlanner(SwingTrajectoryPlannerSettings settings,
                                                    const KinematicsModelBase<scalar_t> &kinematicsModel,
                                                    const InverseKinematicsModelBase *inverseKinematicsModelPtr)
@@ -462,7 +474,8 @@ namespace switched_model {
                     if (contactPhase.start < finalTime) {
                         ConvexTerrain convexTerrain = terrainModel.getConvexTerrainAtPositionInWorld(
                             referenceFootholdPositionInWorld, scoringFunction);
-                        nominalFootholdTerrain.push_back(convexTerrain);
+                        nominalFootholdTerrain.push_back(
+                            terrainForContactFrame(std::move(convexTerrain), settings_.contactRadii[leg]));
                         ++heuristicFootholdIt;
                     } else {
                         // After the horizon -> we are only interested in the position and orientation
@@ -470,7 +483,8 @@ namespace switched_model {
                         convexTerrain.plane =
                                 terrainModel.getLocalTerrainAtPositionInWorldAlongGravity(
                                     referenceFootholdPositionInWorld, scoringFunction);
-                        nominalFootholdTerrain.push_back(convexTerrain);
+                        nominalFootholdTerrain.push_back(
+                            terrainForContactFrame(std::move(convexTerrain), settings_.contactRadii[leg]));
                         ++heuristicFootholdIt;
                     }
                 }

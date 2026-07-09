@@ -29,6 +29,7 @@ namespace switched_model {
         // swing phases shorter than this time will be scaled down in height and velocity
         scalar_t sdfMidswingMargin = 0.0; // desired sdf based clearance in the middle of the swing phase [m]
         scalar_t terrainMargin = 0.0; // shrinkage of the convex terrain constrains in [m]
+        feet_array_t<scalar_t> contactRadii{}; // radius offset between terrain contact and the planned foot frame [m]
 
         scalar_t previousFootholdFactor = 0.0; // factor in [0, 1] with which to take previous foothold into account.
         scalar_t previousFootholdDeadzone = 0.0;
