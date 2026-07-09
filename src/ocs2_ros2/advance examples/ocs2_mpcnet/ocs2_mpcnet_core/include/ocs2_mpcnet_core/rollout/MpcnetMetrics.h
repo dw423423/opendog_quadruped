@@ -38,6 +38,10 @@ namespace ocs2::mpcnet {
     struct Metrics {
         /** Survival time. */
         scalar_t survivalTime = 0.0;
+        /** Final horizontal position error to target, using state indices 0 and 1. */
+        scalar_t finalXyError = 0.0;
+        /** Final yaw error to target, using wrapped state index 2. */
+        scalar_t finalYawError = 0.0;
         /** Hamiltonian incurred over time. */
         scalar_t incurredHamiltonian = 0.0;
     };

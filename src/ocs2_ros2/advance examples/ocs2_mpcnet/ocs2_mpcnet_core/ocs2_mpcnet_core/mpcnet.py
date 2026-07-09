@@ -33,7 +33,9 @@ Provides a class that handles the MPC-Net training.
 """
 
 import datetime
+import json
 import os
+import shutil
 import time
 from abc import ABCMeta, abstractmethod
 from typing import Optional, Tuple
@@ -109,6 +111,63 @@ class Mpcnet(metaclass=ABCMeta):
         # optimizer
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=config.LEARNING_RATE)
 
+    def save_policy(self, policy: BasePolicy, save_path: str) -> None:
+        """Save a policy as ONNX and PyTorch files without the extension."""
+        torch.onnx.export(
+            model=policy,
+            args=self.dummy_observation,
+            f=save_path + ".onnx",
+            dynamo=False,
+            opset_version=11,
+        )
+        torch.save(obj=policy, f=save_path + ".pt")
+
+    @staticmethod
+    def is_better_policy(
+            survival_time: float,
+            final_xy_error: float,
+            final_yaw_error: float,
+            incurred_hamiltonian: float,
+            evaluation_duration: float,
+            best_survival_time: float,
+            best_final_xy_error: float,
+            best_final_yaw_error: float,
+            best_incurred_hamiltonian: float,
+    ) -> bool:
+        """Return true if full survival is reached, then final xy error improves."""
+        if not np.isfinite(survival_time):
+            return False
+
+        eps = 1e-9
+        survival_complete = survival_time >= evaluation_duration - eps
+        best_survival_complete = best_survival_time >= evaluation_duration - eps
+        if survival_complete != best_survival_complete:
+            return survival_complete
+
+        if not survival_complete:
+            if survival_time > best_survival_time + eps:
+                return True
+            if survival_time < best_survival_time - eps:
+                return False
+
+        current_xy_error = final_xy_error if np.isfinite(final_xy_error) else np.inf
+        best_xy_error = best_final_xy_error if np.isfinite(best_final_xy_error) else np.inf
+        if current_xy_error < best_xy_error - eps:
+            return True
+        if current_xy_error > best_xy_error + eps:
+            return False
+
+        current_yaw_error = final_yaw_error if np.isfinite(final_yaw_error) else np.inf
+        best_yaw_error = best_final_yaw_error if np.isfinite(best_final_yaw_error) else np.inf
+        if current_yaw_error < best_yaw_error - eps:
+            return True
+        if current_yaw_error > best_yaw_error + eps:
+            return False
+
+        current_hamiltonian = incurred_hamiltonian if np.isfinite(incurred_hamiltonian) else np.inf
+        best_hamiltonian = best_incurred_hamiltonian if np.isfinite(best_incurred_hamiltonian) else np.inf
+        return current_hamiltonian < best_hamiltonian - eps
+
     @abstractmethod
     def get_tasks(
             self, tasks_number: int, duration: float
@@ -139,7 +198,7 @@ class Mpcnet(metaclass=ABCMeta):
             alpha: The weight of the MPC policy in the rollouts.
         """
         policy_file_path = "/tmp/data_generation_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".onnx"
-        torch.onnx.export(model=policy, args=self.dummy_observation, f=policy_file_path)
+        torch.onnx.export(model=policy, args=self.dummy_observation, f=policy_file_path, dynamo=False, opset_version=11,)
         initial_observations, mode_schedules, target_trajectories = self.get_tasks(
             self.config.DATA_GENERATION_TASKS, self.config.DATA_GENERATION_DURATION
         )
@@ -165,7 +224,9 @@ class Mpcnet(metaclass=ABCMeta):
             alpha: The weight of the MPC policy in the rollouts.
         """
         policy_file_path = "/tmp/policy_evaluation_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".onnx"
-        torch.onnx.export(model=policy, args=self.dummy_observation, f=policy_file_path)
+        pt_file_path = policy_file_path[:-5] + ".pt"
+        torch.onnx.export(model=policy, args=self.dummy_observation, f=policy_file_path, dynamo=False, opset_version=11,)
+        torch.save(obj=policy, f=pt_file_path)
         initial_observations, mode_schedules, target_trajectories = self.get_tasks(
             self.config.POLICY_EVALUATION_TASKS, self.config.POLICY_EVALUATION_DURATION
         )
@@ -177,6 +238,7 @@ class Mpcnet(metaclass=ABCMeta):
             mode_schedules,
             target_trajectories,
         )
+        return policy_file_path, pt_file_path
 
     def train(self) -> None:
         """Train.
@@ -184,14 +246,19 @@ class Mpcnet(metaclass=ABCMeta):
         Run the main training loop of MPC-Net.
         """
         try:
+            best_survival_time = -np.inf
+            best_final_xy_error = np.inf
+            best_final_yaw_error = np.inf
+            best_incurred_hamiltonian = np.inf
+            best_policy_info_path = os.path.join(self.log_dir, "best_policy.json")
+
             # save initial policy
             save_path = self.log_dir + "/initial_policy"
-            torch.onnx.export(model=self.policy, args=self.dummy_observation, f=save_path + ".onnx")
-            torch.save(obj=self.policy, f=save_path + ".pt")
+            self.save_policy(self.policy, save_path)
 
             print("==============\nWaiting for first data.\n==============")
             self.start_data_generation(self.policy)
-            self.start_policy_evaluation(self.policy)
+            pending_policy_evaluation_files = self.start_policy_evaluation(self.policy)
             while not self.interface.isDataGenerationDone():
                 time.sleep(1.0)
 
@@ -226,27 +293,85 @@ class Mpcnet(metaclass=ABCMeta):
                     # get computed metrics
                     metrics = self.interface.getComputedMetrics()
                     survival_time = np.mean([metrics[i].survivalTime for i in range(len(metrics))])
+                    final_xy_error = np.mean([getattr(metrics[i], "finalXyError", np.inf) for i in range(len(metrics))])
+                    final_yaw_error = np.mean([getattr(metrics[i], "finalYawError", np.inf) for i in range(len(metrics))])
                     incurred_hamiltonian = np.mean([metrics[i].incurredHamiltonian for i in range(len(metrics))])
                     # logging
                     self.writer.add_scalar("metric/survival_time", survival_time, iteration)
+                    self.writer.add_scalar("metric/final_xy_error", final_xy_error, iteration)
+                    self.writer.add_scalar("metric/final_yaw_error", final_yaw_error, iteration)
                     self.writer.add_scalar("metric/incurred_hamiltonian", incurred_hamiltonian, iteration)
+                    if self.is_better_policy(
+                            survival_time, final_xy_error, final_yaw_error, incurred_hamiltonian,
+                            self.config.POLICY_EVALUATION_DURATION, best_survival_time, best_final_xy_error,
+                            best_final_yaw_error, best_incurred_hamiltonian):
+                        best_survival_time = survival_time
+                        best_final_xy_error = final_xy_error
+                        best_final_yaw_error = final_yaw_error
+                        best_incurred_hamiltonian = incurred_hamiltonian
+                        shutil.copyfile(pending_policy_evaluation_files[0], self.log_dir + "/best_policy.onnx")
+                        shutil.copyfile(pending_policy_evaluation_files[1], self.log_dir + "/best_policy.pt")
+                        with open(best_policy_info_path, "w") as stream:
+                            json.dump(
+                                {
+                                    "iteration": iteration,
+                                    "evaluation_duration": float(self.config.POLICY_EVALUATION_DURATION),
+                                    "survival_time": float(survival_time),
+                                    "final_xy_error": (
+                                        float(final_xy_error) if np.isfinite(final_xy_error) else None
+                                    ),
+                                    "final_yaw_error": (
+                                        float(final_yaw_error) if np.isfinite(final_yaw_error) else None
+                                    ),
+                                    "incurred_hamiltonian": (
+                                        float(incurred_hamiltonian) if np.isfinite(incurred_hamiltonian) else None
+                                    ),
+                                    "selection_priority": [
+                                        "survival_time reaches evaluation_duration",
+                                        "among complete evaluations, final_xy_error smaller",
+                                        "final_yaw_error smaller only as a tie-breaker",
+                                        "incurred_hamiltonian smaller only as a tie-breaker",
+                                        "non-finite tie-breaker values are worse",
+                                    ],
+                                    "source_onnx": pending_policy_evaluation_files[0],
+                                    "source_pt": pending_policy_evaluation_files[1],
+                                },
+                                stream,
+                                indent=2,
+                            )
+                        print(
+                            "iteration",
+                            iteration,
+                            "saved best policy:",
+                            "survival_time",
+                            best_survival_time,
+                            "final_xy_error",
+                            best_final_xy_error,
+                            "final_yaw_error",
+                            best_final_yaw_error,
+                            "incurred_hamiltonian",
+                            best_incurred_hamiltonian,
+                        )
                     print(
                         "iteration",
                         iteration,
                         "received metrics:",
+                        "final_xy_error",
+                        final_xy_error,
+                        "final_yaw_error",
+                        final_yaw_error,
                         "incurred_hamiltonian",
                         incurred_hamiltonian,
                         "survival_time",
                         survival_time,
                     )
                     # start new policy evaluation
-                    self.start_policy_evaluation(self.policy)
+                    pending_policy_evaluation_files = self.start_policy_evaluation(self.policy)
 
                 # save intermediate policy
                 if (iteration % int(0.1 * self.config.LEARNING_ITERATIONS) == 0) and (iteration > 0):
                     save_path = self.log_dir + "/intermediate_policy_" + str(iteration)
-                    torch.onnx.export(model=self.policy, args=self.dummy_observation, f=save_path + ".onnx")
-                    torch.save(obj=self.policy, f=save_path + ".pt")
+                    self.save_policy(self.policy, save_path)
 
                 # extract batch from memory
                 (
@@ -322,8 +447,7 @@ class Mpcnet(metaclass=ABCMeta):
 
             # save final policy
             save_path = self.log_dir + "/final_policy"
-            torch.onnx.export(model=self.policy, args=self.dummy_observation, f=save_path + ".onnx")
-            torch.save(obj=self.policy, f=save_path + ".pt")
+            self.save_policy(self.policy, save_path)
 
         except KeyboardInterrupt:
             # let data generation and policy evaluation finish (to avoid a segmentation fault)

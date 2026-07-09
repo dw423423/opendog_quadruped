@@ -29,8 +29,38 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_mpcnet_core/rollout/MpcnetPolicyEvaluation.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 
 namespace ocs2::mpcnet {
+    namespace {
+        scalar_t wrapAngle(scalar_t angle) {
+            return std::atan2(std::sin(angle), std::cos(angle));
+        }
+
+        void setFinalTrackingErrors(metrics_t &metrics, const SystemObservation &observation,
+                                    const TargetTrajectories &targetTrajectories) {
+            if (targetTrajectories.timeTrajectory.empty() || observation.state.size() < 3) {
+                metrics.finalXyError = std::numeric_limits<scalar_t>::quiet_NaN();
+                metrics.finalYawError = std::numeric_limits<scalar_t>::quiet_NaN();
+                return;
+            }
+
+            const scalar_t targetTime = std::min(observation.time, targetTrajectories.timeTrajectory.back());
+            const vector_t desiredState = targetTrajectories.getDesiredState(targetTime);
+            if (desiredState.size() < 3) {
+                metrics.finalXyError = std::numeric_limits<scalar_t>::quiet_NaN();
+                metrics.finalYawError = std::numeric_limits<scalar_t>::quiet_NaN();
+                return;
+            }
+
+            metrics.finalXyError = (observation.state.head<2>() - desiredState.head<2>()).norm();
+            metrics.finalYawError = std::abs(wrapAngle(observation.state(2) - desiredState(2)));
+        }
+    } // namespace
+
     metrics_t MpcnetPolicyEvaluation::run(scalar_t alpha, const std::string &policyFilePath, scalar_t timeStep,
                                           const SystemObservation &initialObservation, const ModeSchedule &modeSchedule,
                                           const TargetTrajectories &targetTrajectories) {
@@ -65,6 +95,7 @@ namespace ocs2::mpcnet {
 
         // report survival time
         metrics.survivalTime = systemObservation_.time;
+        setFinalTrackingErrors(metrics, systemObservation_, targetTrajectories);
 
         // return metrics
         return metrics;

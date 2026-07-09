@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <pybind11/eigen.h>
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -107,6 +108,8 @@ namespace py = pybind11;
     py::class_<ocs2::mpcnet::metrics_t>(m, "Metrics")                                                 \
         .def(pybind11::init<>())                                                                            \
         .def_readwrite("survivalTime", &ocs2::mpcnet::metrics_t::survivalTime)                              \
+        .def_readwrite("finalXyError", &ocs2::mpcnet::metrics_t::finalXyError)                              \
+        .def_readwrite("finalYawError", &ocs2::mpcnet::metrics_t::finalYawError)                            \
         .def_readwrite("incurredHamiltonian", &ocs2::mpcnet::metrics_t::incurredHamiltonian);               \
   }
 
@@ -114,6 +117,16 @@ namespace py = pybind11;
  * Convenience macro to bind robot MPC-Net interface.
  */
 #define CREATE_ROBOT_MPCNET_PYTHON_BINDINGS(MPCNET_INTERFACE, LIB_NAME)                                                        \
+  /* keep vector types opaque in robot modules too, so pybind reuses the core bindings instead of treating them as sequences */ \
+  PYBIND11_MAKE_OPAQUE(ocs2::size_array_t)                                                                                     \
+  PYBIND11_MAKE_OPAQUE(ocs2::scalar_array_t)                                                                                   \
+  PYBIND11_MAKE_OPAQUE(ocs2::vector_array_t)                                                                                   \
+  PYBIND11_MAKE_OPAQUE(ocs2::matrix_array_t)                                                                                   \
+  PYBIND11_MAKE_OPAQUE(std::vector<ocs2::SystemObservation>)                                                                   \
+  PYBIND11_MAKE_OPAQUE(std::vector<ocs2::ModeSchedule>)                                                                        \
+  PYBIND11_MAKE_OPAQUE(std::vector<ocs2::TargetTrajectories>)                                                                  \
+  PYBIND11_MAKE_OPAQUE(ocs2::mpcnet::data_array_t)                                                                             \
+  PYBIND11_MAKE_OPAQUE(ocs2::mpcnet::metrics_array_t)                                                                          \
   /* create a python module */                                                                                                 \
   PYBIND11_MODULE(LIB_NAME, m) {                                                                                               \
     /* import the general MPC-Net module */                                                                                    \
@@ -121,9 +134,30 @@ namespace py = pybind11;
     /* bind actual MPC-Net interface for specific robot */                                                                     \
     py::class_<MPCNET_INTERFACE>(m, "MpcnetInterface")                                                                   \
         .def(pybind11::init<size_t, size_t, bool>())                                                                           \
-        .def("startDataGeneration", &MPCNET_INTERFACE::startDataGeneration, "alpha"_a, "policyFilePath"_a, "timeStep"_a,       \
-             "dataDecimation"_a, "nSamples"_a, "samplingCovariance"_a.noconvert(), "initialObservations"_a, "modeSchedules"_a, \
-             "targetTrajectories"_a)                                                                                           \
+        .def("startDataGeneration",                                                                                            \
+             [](MPCNET_INTERFACE& self, ocs2::scalar_t alpha, const std::string& policyFilePath, ocs2::scalar_t timeStep,       \
+                size_t dataDecimation, size_t nSamples,                                                                         \
+                const py::array_t<ocs2::scalar_t, py::array::forcecast>& samplingCovariance,                                    \
+                const std::vector<ocs2::SystemObservation>& initialObservations,                                                \
+                const std::vector<ocs2::ModeSchedule>& modeSchedules,                                                           \
+                const std::vector<ocs2::TargetTrajectories>& targetTrajectories) {                                              \
+               const py::buffer_info info = samplingCovariance.request();                                                       \
+               if (info.ndim != 2) {                                                                                            \
+                 throw std::runtime_error("samplingCovariance must be a 2D matrix.");                                           \
+               }                                                                                                                \
+               ocs2::matrix_t covariance(info.shape[0], info.shape[1]);                                                         \
+               const auto* base = static_cast<const char*>(info.ptr);                                                           \
+               for (py::ssize_t row = 0; row < info.shape[0]; ++row) {                                                          \
+                 for (py::ssize_t col = 0; col < info.shape[1]; ++col) {                                                        \
+                   covariance(row, col) =                                                                                        \
+                       *reinterpret_cast<const ocs2::scalar_t*>(base + row * info.strides[0] + col * info.strides[1]);          \
+                 }                                                                                                              \
+               }                                                                                                                \
+               self.startDataGeneration(alpha, policyFilePath, timeStep, dataDecimation, nSamples, covariance,                  \
+                                        initialObservations, modeSchedules, targetTrajectories);                                 \
+             },                                                                                                                 \
+             "alpha"_a, "policyFilePath"_a, "timeStep"_a, "dataDecimation"_a, "nSamples"_a, "samplingCovariance"_a,           \
+             "initialObservations"_a, "modeSchedules"_a, "targetTrajectories"_a)                                               \
         .def("isDataGenerationDone", &MPCNET_INTERFACE::isDataGenerationDone)                                                  \
         .def("getGeneratedData", &MPCNET_INTERFACE::getGeneratedData)                                                          \
         .def("startPolicyEvaluation", &MPCNET_INTERFACE::startPolicyEvaluation, "alpha"_a, "policyFilePath"_a, "timeStep"_a,   \

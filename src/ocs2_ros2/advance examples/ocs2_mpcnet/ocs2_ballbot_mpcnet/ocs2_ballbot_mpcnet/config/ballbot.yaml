@@ -116,8 +116,15 @@ POLICY_EVALUATION_TASKS: 5
 #
 # training
 #
-BATCH_SIZE: 32
-LEARNING_RATE: 1.e-2
-LEARNING_ITERATIONS: 10000
-GRADIENT_CLIPPING: False
-GRADIENT_CLIPPING_VALUE: 1.0
+# BATCH_SIZE: 32
+# LEARNING_RATE: 1.e-2
+# LEARNING_ITERATIONS: 10000
+# GRADIENT_CLIPPING: False
+# GRADIENT_CLIPPING_VALUE: 1.0
+
+
+BATCH_SIZE: 128   #每次梯度更新时，从 replay memory 里随机取 n 条 MPC 数据来训练。
+LEARNING_RATE: 1.e-3  #学习率
+GRADIENT_CLIPPING: True   #开启梯度裁剪。意思是如果一次反向传播算出来的梯度太大，就把它压小，避免模型参数突然跳太远。
+GRADIENT_CLIPPING_VALUE: 1.0    #梯度裁剪阈值。也就是把所有参数梯度的总范数限制在 n 以内。
+LEARNING_ITERATIONS: 100000      #训练迭代次数。训练循环会执行 n 次 optimizer step。

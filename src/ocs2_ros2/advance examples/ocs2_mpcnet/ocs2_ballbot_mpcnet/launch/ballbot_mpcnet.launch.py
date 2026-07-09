@@ -17,8 +17,12 @@ def generate_launch_description():
     rviz_arg = DeclareLaunchArgument('rviz', default_value='true')
     multiplot_arg = DeclareLaunchArgument('multiplot', default_value='false')
     task_name_arg = DeclareLaunchArgument('task_name', default_value='mpc')
-    policy_file_path_arg = DeclareLaunchArgument('policy_file_path', default_value=os.path.join(
-        get_package_share_directory('ocs2_ballbot_mpcnet'), 'policy', 'ballbot.onnx'))
+    default_policy_file_path = (
+        '/home/mm/opendog_quadruped/src/ocs2_ros2/advance examples/ocs2_mpcnet/'
+        'ocs2_ballbot_mpcnet/ocs2_ballbot_mpcnet/runs/'
+        '2026-07-08_12-01-38_ballbot_description/intermediate_policy_1000.onnx'
+    )
+    policy_file_path_arg = DeclareLaunchArgument('policy_file_path', default_value=default_policy_file_path)
 
     rviz_group = GroupAction(
         condition=IfCondition(LaunchConfiguration('rviz')),

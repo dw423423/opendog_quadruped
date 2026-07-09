@@ -161,5 +161,7 @@ PYBIND11_MODULE(MpcnetPybindings, m) {
     py::class_<ocs2::mpcnet::metrics_t>(m, "Metrics")
             .def(pybind11::init<>())
             .def_readwrite("survivalTime", &ocs2::mpcnet::metrics_t::survivalTime)
+            .def_readwrite("finalXyError", &ocs2::mpcnet::metrics_t::finalXyError)
+            .def_readwrite("finalYawError", &ocs2::mpcnet::metrics_t::finalYawError)
             .def_readwrite("incurredHamiltonian", &ocs2::mpcnet::metrics_t::incurredHamiltonian);
 }
