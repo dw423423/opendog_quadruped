@@ -227,7 +227,7 @@ class LeggedRobotMpcnet(mpcnet.Mpcnet):
                 )
                 mode_schedules[i] = helper.get_mode_schedule(*self.get_stance(duration))
                 target_trajectories[i] = helper.get_target_trajectories(
-                    duration * np.ones((1, 1)),
+                    np.array([duration], dtype=np.float64),
                     self.get_random_target_state_stance().reshape((1, self.config.TARGET_STATE_DIM)),
                     np.zeros((1, self.config.TARGET_INPUT_DIM)),
                 )
@@ -237,7 +237,7 @@ class LeggedRobotMpcnet(mpcnet.Mpcnet):
                 )
                 mode_schedules[i] = helper.get_mode_schedule(*self.get_trot_1(duration))
                 target_trajectories[i] = helper.get_target_trajectories(
-                    duration * np.ones((1, 1)),
+                    np.array([duration], dtype=np.float64),
                     self.get_random_target_state_trot().reshape((1, self.config.TARGET_STATE_DIM)),
                     np.zeros((1, self.config.TARGET_INPUT_DIM)),
                 )
@@ -247,7 +247,7 @@ class LeggedRobotMpcnet(mpcnet.Mpcnet):
                 )
                 mode_schedules[i] = helper.get_mode_schedule(*self.get_trot_2(duration))
                 target_trajectories[i] = helper.get_target_trajectories(
-                    duration * np.ones((1, 1)),
+                    np.array([duration], dtype=np.float64),
                     self.get_random_target_state_trot().reshape((1, self.config.TARGET_STATE_DIM)),
                     np.zeros((1, self.config.TARGET_INPUT_DIM)),
                 )

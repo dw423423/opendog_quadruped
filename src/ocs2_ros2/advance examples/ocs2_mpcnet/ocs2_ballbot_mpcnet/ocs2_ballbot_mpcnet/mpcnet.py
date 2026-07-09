@@ -131,7 +131,7 @@ class BallbotMpcnet(mpcnet.Mpcnet):
             initial_observations[i] = system_observation
             mode_schedules[i] = helper.get_mode_schedule(*self.get_default_event_times_and_mode_sequence(duration))
             target_trajectories[i] = helper.get_target_trajectories(
-                duration * np.ones((1, 1)),
+                np.array([duration], dtype=np.float64),
                 self.get_random_target_state().reshape((1, self.config.TARGET_STATE_DIM)),
                 np.zeros((1, self.config.TARGET_INPUT_DIM)),
             )
