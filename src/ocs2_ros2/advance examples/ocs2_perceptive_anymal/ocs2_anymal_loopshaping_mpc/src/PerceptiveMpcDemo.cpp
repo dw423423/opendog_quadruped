@@ -732,6 +732,62 @@ void exportMotionDataset(
             << outputDir.string() << "\n";
 }
 
+void declarePerceptionParameters(rclcpp::Node* node) {
+  node->declare_parameter<double>("preprocessing.resolution", 0.04);
+  node->declare_parameter<int>("preprocessing.kernelSize", 3);
+  node->declare_parameter<int>("preprocessing.numberOfRepeats", 2);
+
+  node->declare_parameter<int>("contour_extraction.marginSize", 1);
+
+  node->declare_parameter<double>("ransac_plane_refinement.probability",
+                                  0.01);
+  node->declare_parameter<double>("ransac_plane_refinement.min_points", 4.0);
+  node->declare_parameter<double>("ransac_plane_refinement.epsilon", 0.025);
+  node->declare_parameter<double>("ransac_plane_refinement.cluster_epsilon",
+                                  0.08);
+  node->declare_parameter<double>("ransac_plane_refinement.normal_threshold",
+                                  25.0);
+
+  node->declare_parameter<int>("sliding_window_plane_extractor.kernel_size",
+                               3);
+  node->declare_parameter<int>(
+      "sliding_window_plane_extractor.planarity_opening_filter", 0);
+  node->declare_parameter<double>(
+      "sliding_window_plane_extractor.plane_inclination_threshold_degrees",
+      30.0);
+  node->declare_parameter<double>(
+      "sliding_window_plane_extractor.local_plane_inclination_threshold_degrees",
+      35.0);
+  node->declare_parameter<double>(
+      "sliding_window_plane_extractor.plane_patch_error_threshold", 0.02);
+  node->declare_parameter<int>(
+      "sliding_window_plane_extractor.min_number_points_per_label", 4);
+  node->declare_parameter<int>("sliding_window_plane_extractor.connectivity",
+                               4);
+  node->declare_parameter<bool>(
+      "sliding_window_plane_extractor.include_ransac_refinement", true);
+  node->declare_parameter<double>(
+      "sliding_window_plane_extractor.global_plane_fit_distance_error_threshold",
+      0.025);
+  node->declare_parameter<double>(
+      "sliding_window_plane_extractor."
+      "global_plane_fit_angle_error_threshold_degrees",
+      25.0);
+
+  node->declare_parameter<double>(
+      "postprocessing.extracted_planes_height_offset", 0.0);
+  node->declare_parameter<double>("postprocessing.nonplanar_height_offset",
+                                  0.02);
+  node->declare_parameter<int>("postprocessing.nonplanar_horizontal_offset",
+                               1);
+  node->declare_parameter<double>("postprocessing.smoothing_dilation_size",
+                                  0.2);
+  node->declare_parameter<double>("postprocessing.smoothing_box_kernel_size",
+                                  0.1);
+  node->declare_parameter<double>("postprocessing.smoothing_gauss_kernel_size",
+                                  0.05);
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -749,6 +805,7 @@ int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::Node::SharedPtr node =
       rclcpp::Node::make_shared(robotName + "anymal_perceptive_mpc_demo");
+  declarePerceptionParameters(node.get());
   node->declare_parameter("ocs2_anymal_description", "anymal");
   const std::string urdfPath =
       node->get_parameter("ocs2_anymal_description").as_string();
@@ -770,26 +827,19 @@ int main(int argc, char* argv[]) {
       perceptionConfig;
   perceptionConfig.preprocessingParameters =
       convex_plane_decomposition::loadPreprocessingParameters(
-          node.get(),
-          "/ocs2_anymal_loopshaping_mpc_perceptive_demo/preprocessing/");
+          node.get(), "preprocessing.");
   perceptionConfig.contourExtractionParameters =
       convex_plane_decomposition::loadContourExtractionParameters(
-          node.get(),
-          "/ocs2_anymal_loopshaping_mpc_perceptive_demo/contour_extraction/");
+          node.get(), "contour_extraction.");
   perceptionConfig.ransacPlaneExtractorParameters =
       convex_plane_decomposition::loadRansacPlaneExtractorParameters(
-          node.get(),
-          "/ocs2_anymal_loopshaping_mpc_perceptive_demo/"
-          "ransac_plane_refinement/");
+          node.get(), "ransac_plane_refinement.");
   perceptionConfig.slidingWindowPlaneExtractorParameters =
       convex_plane_decomposition::loadSlidingWindowPlaneExtractorParameters(
-          node.get(),
-          "/ocs2_anymal_loopshaping_mpc_perceptive_demo/"
-          "sliding_window_plane_extractor/");
+          node.get(), "sliding_window_plane_extractor.");
   perceptionConfig.postprocessingParameters =
       convex_plane_decomposition::loadPostprocessingParameters(
-          node.get(),
-          "/ocs2_anymal_loopshaping_mpc_perceptive_demo/postprocessing/");
+          node.get(), "postprocessing.");
 
   auto anymalInterface =
       anymal::getAnymalLoopshapingInterface(urdfString, configFolder);
@@ -821,11 +871,22 @@ int main(int argc, char* argv[]) {
       std::filesystem::path(terrainFolder) / terrainFile;
   node->declare_parameter("terrain_scale", 0.35);
   double heightScale = node->get_parameter("terrain_scale").as_double();
+  node->declare_parameter("terrain_center_x", 0.0);
+  const double terrainCenterX =
+      node->get_parameter("terrain_center_x").as_double();
   auto gridMap = convex_plane_decomposition::loadGridmapFromImage(
       terrainSourcePath.string(), elevationLayer, frameId,
       perceptionConfig.preprocessingParameters.resolution, heightScale);
+  gridMap.setPosition({terrainCenterX, 0.0});
+  const grid_map::Position mapHalfLength = 0.5 * gridMap.getLength();
+  const double halfCell = 0.5 * gridMap.getResolution();
+  const grid_map::Position mapOriginReference{
+      std::clamp(0.0, gridMap.getPosition().x() - mapHalfLength.x() + halfCell,
+                 gridMap.getPosition().x() + mapHalfLength.x() - halfCell),
+      std::clamp(0.0, gridMap.getPosition().y() - mapHalfLength.y() + halfCell,
+                 gridMap.getPosition().y() + mapHalfLength.y() - halfCell)};
   gridMap.get(elevationLayer).array() -=
-      gridMap.atPosition(elevationLayer, {0., 0.});
+      gridMap.atPosition(elevationLayer, mapOriginReference);
 
   Gait stance;
   stance.duration = stanceTime;

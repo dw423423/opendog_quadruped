@@ -38,6 +38,16 @@
 | 总宽度 | ≥ 2.0 m | |
 | 台阶截面形状 | 矩形 | 每级为垂直立面 + 水平踏面 |
 
+实现地图：`stairs_up_6x10cm.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+其分辨率为 0.02 m，尺寸为 7.80 m × 2.00 m；行走方向为 world x 正方向：
+前平台 `x=[0.0, 3.0)` m，六级台阶为 `x=[3.0, 4.8)` m，后平台为
+`x=[4.8, 7.8]` m。对应启动入口会自动使用正确的高度缩放和地图原点：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch.py
+```
+
 ### 1.2 下台阶
 
 与上台阶对称，前进方向为下坡方向（从高处走向低处）。几何参数完全相同：

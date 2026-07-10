@@ -41,6 +41,10 @@ def generate_launch_description():
             default_value='0.35'
         ),
         DeclareLaunchArgument(
+            name='terrain_center_x',
+            default_value='0.0'
+        ),
+        DeclareLaunchArgument(
             name='forward_distance',
             default_value='3.0'
         ),
@@ -83,11 +87,12 @@ def generate_launch_description():
             parameters=[
                 {
                     'config_name': LaunchConfiguration('config_name'),
-                    'forward_velocity': 0.5,
+                    'forward_velocity': 0.25,
                     'forward_distance': LaunchConfiguration('forward_distance'),
                     'terrain_name': LaunchConfiguration('terrain_name'),
                     'ocs2_anymal_description': urdf_model_path,
                     'terrain_scale': LaunchConfiguration('terrain_scale'),
+                    'terrain_center_x': LaunchConfiguration('terrain_center_x'),
                     'adaptReferenceToTerrain': True,
                     'export_dataset': ParameterValue(
                         LaunchConfiguration('export_dataset'),
