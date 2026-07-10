@@ -87,7 +87,7 @@ def generate_launch_description():
             parameters=[
                 {
                     'config_name': LaunchConfiguration('config_name'),
-                    'forward_velocity': 0.25,
+                    'forward_velocity': 0.5,
                     'forward_distance': LaunchConfiguration('forward_distance'),
                     'terrain_name': LaunchConfiguration('terrain_name'),
                     'ocs2_anymal_description': urdf_model_path,

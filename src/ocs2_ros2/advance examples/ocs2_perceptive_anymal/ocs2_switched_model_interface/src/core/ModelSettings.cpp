@@ -56,6 +56,8 @@ namespace switched_model {
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaFrictionCone_, prefix + "deltaFrictionCone", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muFootPlacement_, prefix + "muFootPlacement", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaFootPlacement_, prefix + "deltaFootPlacement", verbose);
+        ocs2::loadData::loadPtreeValue(pt, modelSettings.minimumSameSideFootSeparation_,
+                                       prefix + "minimumSameSideFootSeparation", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muSdf_, prefix + "muSdf", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaSdf_, prefix + "deltaSdf", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muJointsPosition_, prefix + "muJointsPosition", verbose);

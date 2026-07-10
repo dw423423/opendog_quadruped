@@ -17,6 +17,7 @@ add_library(${PROJECT_NAME}
         src/constraint/EndEffectorVelocityConstraint.cpp
         src/constraint/FootNormalConstraint.cpp
         src/constraint/FrictionConeConstraint.cpp
+        src/constraint/SameSideFootSeparationConstraint.cpp
         src/constraint/ZeroForceConstraint.cpp
         src/dynamics/ComKinoSystemDynamicsAd.cpp
         src/dynamics/ComKinoDynamicsParameters.cpp
@@ -95,6 +96,7 @@ if(BUILD_TESTING)
     ament_add_gtest(test_constraints
             test/constraint/testZeroForceConstraint.cpp
             test/constraint/testFrictionConeConstraint.cpp
+            test/constraint/testSameSideFootSeparationConstraint.cpp
     )
     target_link_libraries(test_constraints ${PROJECT_NAME})
 

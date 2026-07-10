@@ -1,6 +1,6 @@
 model_settings
 {
-  algorithm                     SQP
+  algorithm                     DDP
   recompileLibraries            true
   robotName                     togo_prototype
 
@@ -13,6 +13,7 @@ model_settings
 
   muFootPlacement               0.1   ; magnitude scaling
   deltaFootPlacement            0.005  ; [m] distance from constraint boundary where the barrier becomes quadratic.
+  minimumSameSideFootSeparation 0.20  ; [m] x_front - x_hind for each side
 
   muSdf                         2.5
   deltaSdf                      0.005
@@ -206,7 +207,7 @@ initialRobotState
    (2,0) 0.0     ; z
 
    ; position
-   (3,0) 0.0     ; x
+   (3,0) 0.20     ; x
    (4,0) 0.0     ; y
    (5,0) 0.34    ; z
 

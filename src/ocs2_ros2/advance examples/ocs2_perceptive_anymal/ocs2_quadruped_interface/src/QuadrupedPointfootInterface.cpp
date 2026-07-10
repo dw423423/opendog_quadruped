@@ -6,9 +6,22 @@
 
 #include <ocs2_ddp/ContinuousTimeLqr.h>
 #include <ocs2_oc/approximate_model/LinearQuadraticApproximator.h>
+#include <ocs2_core/penalties/penalties/SquaredHingePenalty.h>
+#include <ocs2_core/soft_constraint/StateSoftConstraint.h>
+#include <ocs2_switched_model_interface/constraint/SameSideFootSeparationConstraint.h>
 #include <ocs2_switched_model_interface/core/TorqueApproximation.h>
 
 namespace switched_model {
+
+namespace {
+
+// SQP enforces costs directly, whereas state-only inequality constraints are
+// currently only evaluated for metrics. Target a small buffer above the
+// requested separation so the closed-loop rollout remains above the limit.
+constexpr scalar_t kSameSideFootSeparationGuard = 0.03;
+constexpr scalar_t kSameSideFootSeparationPenalty = 5.0e3;
+
+}  // namespace
 
 QuadrupedPointfootInterface::QuadrupedPointfootInterface(const kinematic_model_t& kinematicModel,
                                                          const ad_kinematic_model_t& adKinematicModel, const com_model_t& comModel,
@@ -29,6 +42,29 @@ QuadrupedPointfootInterface::QuadrupedPointfootInterface(const kinematic_model_t
   problemPtr_->costPtr->add("MotionTrackingCost", createMotionTrackingCost());
   problemPtr_->stateCostPtr->add("FootPlacementCost", createFootPlacementCost());
   problemPtr_->stateCostPtr->add("CollisionAvoidanceCost", createCollisionAvoidanceCost());
+  if (modelSettings().minimumSameSideFootSeparation_ > 0.0) {
+    const auto minimumSeparation =
+        modelSettings().minimumSameSideFootSeparation_;
+
+    // Keep the explicit inequality for diagnostics and solvers that support
+    // state-only inequalities natively.
+    problemPtr_->stateInequalityConstraintPtr->add(
+        "SameSideFootSeparation",
+        std::make_unique<SameSideFootSeparationConstraint>(
+            minimumSeparation));
+
+    // The SQP MPC backend optimizes state costs, but does not pass generic
+    // state-only inequalities to its QP. This high-weight hinge penalty is
+    // consequently the active enforcement mechanism for this demo.
+    problemPtr_->stateCostPtr->add(
+        "SameSideFootSeparationCost",
+        std::make_unique<ocs2::StateSoftConstraint>(
+            std::make_unique<SameSideFootSeparationConstraint>(
+                minimumSeparation + kSameSideFootSeparationGuard),
+            std::make_unique<ocs2::SquaredHingePenalty>(
+                ocs2::SquaredHingePenalty::Config{
+                    kSameSideFootSeparationPenalty, 0.0})));
+  }
   problemPtr_->costPtr->add("JointLimitCost", createJointLimitsSoftConstraint());
   problemPtr_->costPtr->add("TorqueLimitCost", createTorqueLimitsSoftConstraint(jointTorquesForWeightCompensation));
   problemPtr_->costPtr->add("FrictionCones", createFrictionConeCost());

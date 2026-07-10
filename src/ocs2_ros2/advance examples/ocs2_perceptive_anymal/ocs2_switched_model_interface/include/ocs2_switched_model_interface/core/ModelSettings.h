@@ -34,6 +34,10 @@ namespace switched_model {
         scalar_t deltaFootPlacement_ = 0.01;
         // [m] distance from constraint boundary where the barrier becomes quadratic.
 
+        // [m] minimum world-x distance between front and hind feet on the
+        // same side. A non-positive value disables the hard constraint.
+        scalar_t minimumSameSideFootSeparation_ = 0.0;
+
         // Collision avoidance relaxed barrier parameters
         scalar_t muSdf_ = 2.5;
         scalar_t deltaSdf_ = 0.005;
