@@ -18,6 +18,7 @@ add_library(${PROJECT_NAME}
         src/constraint/FootNormalConstraint.cpp
         src/constraint/FrictionConeConstraint.cpp
         src/constraint/SameSideFootSeparationConstraint.cpp
+        src/constraint/SelfCollisionConstraint.cpp
         src/constraint/ZeroForceConstraint.cpp
         src/dynamics/ComKinoSystemDynamicsAd.cpp
         src/dynamics/ComKinoDynamicsParameters.cpp
@@ -98,6 +99,7 @@ if(BUILD_TESTING)
             test/constraint/testZeroForceConstraint.cpp
             test/constraint/testFrictionConeConstraint.cpp
             test/constraint/testSameSideFootSeparationConstraint.cpp
+            test/constraint/testSelfCollisionConstraint.cpp
     )
     target_link_libraries(test_constraints ${PROJECT_NAME})
 

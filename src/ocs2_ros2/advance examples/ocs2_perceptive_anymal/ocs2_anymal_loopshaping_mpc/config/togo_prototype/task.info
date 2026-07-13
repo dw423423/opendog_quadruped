@@ -18,7 +18,9 @@ model_settings
   muSdf                         2.5
   deltaSdf                      0.005
 
-  ; Set false to remove SelfCollisionAvoidanceCost from the MPC problem.
+  ; hard registers one QP inequality row for every configured sphere pair.
+  selfCollisionConstraintMode   soft
+  ; Deprecated compatibility switch; ignored because the mode above is present.
   enableSelfCollisionAvoidance  false
   muSelfCollision               0.5
   deltaSelfCollision            0.005

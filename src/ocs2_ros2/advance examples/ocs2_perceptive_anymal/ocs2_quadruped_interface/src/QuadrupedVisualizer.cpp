@@ -77,6 +77,9 @@ QuadrupedVisualizer::QuadrupedVisualizer(
   currentCollisionSpheresPublisher_ =
       node->create_publisher<visualization_msgs::msg::MarkerArray>(
           "/ocs2_anymal/currentCollisionSpheres", 1);
+  currentSelfCollisionSpheresPublisher_ =
+      node->create_publisher<visualization_msgs::msg::MarkerArray>(
+          "/ocs2_anymal/currentSelfCollisionSpheres", 1);
 
   quadrupedTfPublisher_.launchNode(node, "ocs2_anymal_description",
                                    std::move(jointNames), std::move(baseName));
@@ -461,6 +464,23 @@ void QuadrupedVisualizer::publishCollisionSpheres(
                            markerArray.markers.end());
 
   currentCollisionSpheresPublisher_->publish(markerArray);
+
+  // These are distinct from terrain/SDF collision spheres and are the exact
+  // spheres used by SelfCollisionConstraint and SelfCollisionAvoidanceCost.
+  const auto selfCollisionSpheres =
+      kinematicModelPtr_->selfCollisionSpheresInOriginFrame(basePose, jointAngles);
+  visualization_msgs::msg::MarkerArray selfCollisionMarkerArray;
+  selfCollisionMarkerArray.markers.reserve(selfCollisionSpheres.size());
+  for (const auto& sphere : selfCollisionSpheres) {
+    selfCollisionMarkerArray.markers.emplace_back(ocs2::getSphereMsg(
+        sphere.position, ocs2::Color::blue, 2.0 * sphere.radius));
+  }
+  ocs2::assignHeader(selfCollisionMarkerArray.markers.begin(),
+                     selfCollisionMarkerArray.markers.end(),
+                     ocs2::getHeaderMsg(frameId_, timeStamp));
+  ocs2::assignIncreasingId(selfCollisionMarkerArray.markers.begin(),
+                           selfCollisionMarkerArray.markers.end());
+  currentSelfCollisionSpheresPublisher_->publish(selfCollisionMarkerArray);
 }
 
 }  // namespace switched_model

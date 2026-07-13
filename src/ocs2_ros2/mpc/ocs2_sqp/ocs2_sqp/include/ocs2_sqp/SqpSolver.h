@@ -184,6 +184,7 @@ namespace ocs2 {
         std::vector<VectorFunctionLinearApproximation> stateInputEqConstraints_;
         std::vector<VectorFunctionLinearApproximation> stateIneqConstraints_;
         std::vector<VectorFunctionLinearApproximation> stateInputIneqConstraints_;
+        std::vector<VectorFunctionLinearApproximation> inequalityConstraints_;
         std::vector<VectorFunctionLinearApproximation> constraintsProjection_;
 
         // Lagrange multipliers

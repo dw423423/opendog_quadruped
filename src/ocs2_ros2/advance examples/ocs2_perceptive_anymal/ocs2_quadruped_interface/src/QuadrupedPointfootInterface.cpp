@@ -4,12 +4,15 @@
 
 #include "ocs2_quadruped_interface/QuadrupedPointfootInterface.h"
 
+#include <stdexcept>
+
 #include <ocs2_ddp/ContinuousTimeLqr.h>
 #include <ocs2_oc/approximate_model/LinearQuadraticApproximator.h>
 #include <ocs2_core/penalties/penalties/SquaredHingePenalty.h>
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
 #include <ocs2_switched_model_interface/cost/SelfCollisionAvoidanceCost.h>
 #include <ocs2_switched_model_interface/constraint/SameSideFootSeparationConstraint.h>
+#include <ocs2_switched_model_interface/constraint/SelfCollisionConstraint.h>
 #include <ocs2_switched_model_interface/core/TorqueApproximation.h>
 
 namespace switched_model {
@@ -43,12 +46,19 @@ QuadrupedPointfootInterface::QuadrupedPointfootInterface(const kinematic_model_t
   problemPtr_->costPtr->add("MotionTrackingCost", createMotionTrackingCost());
   problemPtr_->stateCostPtr->add("FootPlacementCost", createFootPlacementCost());
   problemPtr_->stateCostPtr->add("CollisionAvoidanceCost", createCollisionAvoidanceCost());
-  if (modelSettings().enableSelfCollisionAvoidance_) {
+  if (modelSettings().selfCollisionConstraintMode_ == SelfCollisionConstraintMode::Soft) {
     problemPtr_->stateCostPtr->add(
         "SelfCollisionAvoidanceCost",
         std::make_unique<SelfCollisionAvoidanceCost>(ocs2::ThresholdRelaxedBarrierPenalty::Config{
             modelSettings().muSelfCollision_, modelSettings().deltaSelfCollision_,
             modelSettings().selfCollisionActivationDistance_}));
+  }
+  if (modelSettings().selfCollisionConstraintMode_ == SelfCollisionConstraintMode::HardWithRecovery) {
+    throw std::runtime_error("hard_with_recovery requires an explicit slack implementation; refusing to silently run strict hard mode.");
+  }
+  if (modelSettings().selfCollisionConstraintMode_ == SelfCollisionConstraintMode::Hard) {
+    problemPtr_->stateInequalityConstraintPtr->add(
+        "SelfCollision", std::make_unique<SelfCollisionConstraint>(kinematicModel.selfCollisionPairs().size()));
   }
   if (modelSettings().minimumSameSideFootSeparation_ > 0.0) {
     const auto minimumSeparation =

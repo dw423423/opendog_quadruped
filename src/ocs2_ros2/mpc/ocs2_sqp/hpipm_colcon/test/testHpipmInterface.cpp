@@ -205,6 +205,39 @@ TEST(test_hpiphm_interface, with_constraints) {
   }
 }
 
+TEST(test_hpiphm_interface, state_inequality_is_a_lower_bound_not_an_equality) {
+  constexpr int nx = 1;
+  constexpr int nu = 1;
+  constexpr int N = 1;
+  ocs2::vector_t x0 = ocs2::vector_t::Zero(nx);
+  std::vector<ocs2::VectorFunctionLinearApproximation> dynamics(N);
+  dynamics[0].f = ocs2::vector_t::Zero(nx);
+  dynamics[0].dfdx = ocs2::matrix_t::Zero(nx, nx);
+  dynamics[0].dfdu = ocs2::matrix_t::Identity(nx, nu);
+  std::vector<ocs2::ScalarFunctionQuadraticApproximation> cost(N + 1);
+  cost[0].dfdxx = ocs2::matrix_t::Zero(nx, nx);
+  cost[0].dfduu = ocs2::matrix_t::Identity(nu, nu);
+  cost[0].dfdux = ocs2::matrix_t::Zero(nu, nx);
+  cost[0].dfdx = ocs2::vector_t::Zero(nx);
+  cost[0].dfdu = ocs2::vector_t::Constant(nu, -1.0);  // Unconstrained optimum u=+1.
+  cost[1].dfdxx = ocs2::matrix_t::Identity(nx, nx);
+  cost[1].dfdx = ocs2::vector_t::Zero(nx);
+  std::vector<ocs2::VectorFunctionLinearApproximation> inequality(N + 1);
+  inequality[0].dfdx = ocs2::matrix_t::Zero(0, nx);
+  inequality[0].dfdu = ocs2::matrix_t::Zero(0, nu);
+  inequality[1].f = ocs2::vector_t::Constant(1, -0.25); // x1 - 0.25 >= 0.
+  inequality[1].dfdx = ocs2::matrix_t::Identity(1, nx);
+  inequality[1].dfdu = ocs2::matrix_t::Zero(1, 0);
+
+  auto size = ocs2::extractSizesFromProblem(dynamics, cost, &inequality);
+  ocs2::HpipmInterface hpipm(size);
+  std::vector<ocs2::vector_t> x;
+  std::vector<ocs2::vector_t> u;
+  ASSERT_EQ(hpipm.solve(x0, dynamics, cost, nullptr, &inequality, x, u), hpipm_status::SUCCESS);
+  EXPECT_GE(x[1](0), 0.25 - 1e-8);
+  EXPECT_GT(x[1](0), 0.25 + 1e-4);  // proves it was not converted to x1 == 0.25.
+}
+
 TEST(test_hpiphm_interface, noInputs) {
   // Initialize without size
   ocs2::HpipmInterface hpipmInterface;

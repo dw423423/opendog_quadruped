@@ -1,5 +1,15 @@
 # ToGo Prototype 自碰撞硬约束改造任务书
 
+## 实施基线（2026-07-13）
+
+```text
+repository: /home/mm/opendog_quadruped
+branch: main
+commit: 01c0c914415165b77122b4879d453abb06eb02ba
+local uncommitted changes: none at implementation start
+build profile: colcon Release
+```
+
 ## 1. 任务目标
 
 将当前仅以 `SelfCollisionAvoidanceCost` 实现的同侧轮子/小腿自碰撞保护，改造为能被当前 OCS2 多重射击 SQP 后端实际传入 HPIPM QP 子问题的硬不等式约束。

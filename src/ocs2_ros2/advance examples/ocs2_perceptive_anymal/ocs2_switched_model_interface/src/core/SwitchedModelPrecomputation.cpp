@@ -126,6 +126,13 @@ namespace switched_model {
 
         if (request.containsAny(ocs2::Request::Cost + ocs2::Request::Constraint + ocs2::Request::SoftConstraint)) {
             updateMotionReference(t);
+            // Final state constraints use the final state's own sphere cache.
+            // Sphere positions depend only on x, so a zero input is sufficient.
+            tapedStateInput_ << x, vector_t::Zero(INPUT_DIM);
+            updateIntermediateLinearOutputs(t, tapedStateInput_);
+            if (request.contains(ocs2::Request::Approximation)) {
+                updateIntermediateLinearOutputDerivatives(t, tapedStateInput_);
+            }
         }
     }
 
@@ -325,10 +332,16 @@ namespace switched_model {
 
         const auto o_feetPositionsAsArray = adKinematicsModel.feetPositionsInOriginFrame(basePose, qJoints);
 
-        const int numberOfOutputs = 3 * NUM_CONTACT_POINTS;
+        const auto o_selfCollisions = adKinematicsModel.selfCollisionSpheresInOriginFrame(basePose, qJoints);
+        const int numberOfOutputs = 3 * NUM_CONTACT_POINTS + 3 * o_selfCollisions.size();
         outputs.resize(numberOfOutputs);
 
         outputs.head<3 * NUM_CONTACT_POINTS>() = fromArray(o_feetPositionsAsArray);
+        int i = 3 * NUM_CONTACT_POINTS;
+        for (const auto& sphere : o_selfCollisions) {
+            outputs.segment<3>(i) = sphere.position;
+            i += 3;
+        }
     }
 
     void SwitchedModelPreComputation::updatePrejumpLinearOutputs(scalar_t t, const vector_t &state) {
@@ -340,6 +353,10 @@ namespace switched_model {
             const int indexInOutputs = 3 * leg;
             feetPositionInOriginFrame_[leg] = prejumpLinearOutputs.segment<3>(indexInOutputs);
         }
+        for (int i = 0; i < selfCollisionRadii_.size(); ++i) {
+            selfCollisionSpheresInOriginFrame_[i].position = prejumpLinearOutputs.segment<3>(3 * NUM_CONTACT_POINTS + 3 * i);
+            selfCollisionSpheresInOriginFrame_[i].radius = selfCollisionRadii_[i];
+        }
     }
 
     void SwitchedModelPreComputation::updatePrejumpLinearOutputDerivatives(scalar_t t, const vector_t &state) {
@@ -350,6 +367,10 @@ namespace switched_model {
             const int indexInOutputs = 3 * leg;
             feetPositionInOriginFrameStateDerivative_[leg] = prejumpLinearOutputDerivatives.block<3, STATE_DIM>(
                 indexInOutputs, 0);
+        }
+        for (int i = 0; i < selfCollisionRadii_.size(); ++i) {
+            selfCollisionSpheresDerivative_[i] = prejumpLinearOutputDerivatives.block<3, STATE_DIM>(
+                3 * NUM_CONTACT_POINTS + 3 * i, 0);
         }
     }
 } // namespace switched_model

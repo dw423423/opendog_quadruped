@@ -6,10 +6,13 @@
 
 namespace switched_model {
     enum class Algorithm { DDP, SQP };
+    enum class SelfCollisionConstraintMode { Off, Soft, Hard, HardWithRecovery };
 
     std::string toAlgorithmName(Algorithm type);
 
     Algorithm fromAlgorithmName(std::string name);
+    SelfCollisionConstraintMode selfCollisionConstraintModeFromString(std::string name);
+    std::string toSelfCollisionConstraintModeName(SelfCollisionConstraintMode mode);
 
     struct ModelSettings {
         Algorithm algorithm_ = Algorithm::SQP;
@@ -45,6 +48,7 @@ namespace switched_model {
         // Self-collision threshold barrier parameters. The penalty is inactive
         // above selfCollisionActivationDistance_.
         bool enableSelfCollisionAvoidance_ = true;
+        SelfCollisionConstraintMode selfCollisionConstraintMode_ = SelfCollisionConstraintMode::Soft;
         scalar_t muSelfCollision_ = 0.1;
         scalar_t deltaSelfCollision_ = 0.005;
         scalar_t selfCollisionActivationDistance_ = 0.05;

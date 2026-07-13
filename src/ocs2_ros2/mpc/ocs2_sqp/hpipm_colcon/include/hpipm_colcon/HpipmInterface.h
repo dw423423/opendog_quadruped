@@ -71,7 +71,10 @@ class HpipmInterface {
    * @param x0 : Initial state (deviation).
    * @param dynamics : Linearized approximation of the discrete dynamics.
    * @param cost : Quadratic approximation of the cost.
-   * @param constraints : Linearized approximation of constraints, all constraints are mapped to inequality constraints in HPIPM.
+   * @param equalityConstraints : Linearized equality constraints.
+   * @param inequalityConstraints : Linearized constraints with the OCS2 convention
+   *   f + dfdx * dx + dfdu * du >= 0. They are mapped to HPIPM general
+   *   inequalities, rather than silently treated as equalities.
    * @param [out] stateTrajectory : Solution state (deviation) trajectory.
    * @param [out] inputTrajectory : Solution input (deviation) trajectory.
    * @param verbose : Prints the HPIPM iteration statistics if true.
@@ -83,7 +86,15 @@ class HpipmInterface {
    *    INCONS_EQ = Unconsistent equality constraints;
    */
   hpipm_status solve(const vector_t& x0, std::vector<VectorFunctionLinearApproximation>& dynamics,
-                     std::vector<ScalarFunctionQuadraticApproximation>& cost, std::vector<VectorFunctionLinearApproximation>* constraints,
+                     std::vector<ScalarFunctionQuadraticApproximation>& cost,
+                     std::vector<VectorFunctionLinearApproximation>* equalityConstraints,
+                     std::vector<VectorFunctionLinearApproximation>* inequalityConstraints,
+                     vector_array_t& stateTrajectory, vector_array_t& inputTrajectory, bool verbose = false);
+
+  /** Backwards-compatible equality-only entry point. */
+  hpipm_status solve(const vector_t& x0, std::vector<VectorFunctionLinearApproximation>& dynamics,
+                     std::vector<ScalarFunctionQuadraticApproximation>& cost,
+                     std::vector<VectorFunctionLinearApproximation>* equalityConstraints,
                      vector_array_t& stateTrajectory, vector_array_t& inputTrajectory, bool verbose = false);
 
   /**

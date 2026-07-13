@@ -24,6 +24,25 @@ namespace switched_model {
         return map.at(name);
     }
 
+    std::string toSelfCollisionConstraintModeName(SelfCollisionConstraintMode mode) {
+        switch (mode) {
+            case SelfCollisionConstraintMode::Off: return "off";
+            case SelfCollisionConstraintMode::Soft: return "soft";
+            case SelfCollisionConstraintMode::Hard: return "hard";
+            case SelfCollisionConstraintMode::HardWithRecovery: return "hard_with_recovery";
+        }
+        throw std::runtime_error("Invalid self collision mode.");
+    }
+
+    SelfCollisionConstraintMode selfCollisionConstraintModeFromString(std::string name) {
+        std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+        if (name == "off") return SelfCollisionConstraintMode::Off;
+        if (name == "soft") return SelfCollisionConstraintMode::Soft;
+        if (name == "hard") return SelfCollisionConstraintMode::Hard;
+        if (name == "hard_with_recovery") return SelfCollisionConstraintMode::HardWithRecovery;
+        throw std::runtime_error("Unknown selfCollisionConstraintMode: " + name);
+    }
+
     ModelSettings loadModelSettings(const std::string &filename, bool verbose) {
         ModelSettings modelSettings;
 
@@ -62,6 +81,17 @@ namespace switched_model {
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaSdf_, prefix + "deltaSdf", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.enableSelfCollisionAvoidance_,
                                        prefix + "enableSelfCollisionAvoidance", verbose);
+        const auto mode = pt.get_optional<std::string>(prefix + "selfCollisionConstraintMode");
+        if (mode) {
+            modelSettings.selfCollisionConstraintMode_ = selfCollisionConstraintModeFromString(*mode);
+            if (verbose) {
+                std::cerr << " selfCollisionConstraintMode: " << *mode
+                          << " (enableSelfCollisionAvoidance is deprecated and ignored)\n";
+            }
+        } else {
+            modelSettings.selfCollisionConstraintMode_ = modelSettings.enableSelfCollisionAvoidance_
+                ? SelfCollisionConstraintMode::Soft : SelfCollisionConstraintMode::Off;
+        }
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muSelfCollision_, prefix + "muSelfCollision", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaSelfCollision_, prefix + "deltaSelfCollision", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.selfCollisionActivationDistance_,

@@ -119,6 +119,8 @@ class QuadrupedVisualizer : public ocs2::DummyObserver {
       currentFeetPosesPublisher_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
       currentCollisionSpheresPublisher_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+      currentSelfCollisionSpheresPublisher_;
 
   scalar_t lastTime_;
   scalar_t minPublishTimeDifference_;

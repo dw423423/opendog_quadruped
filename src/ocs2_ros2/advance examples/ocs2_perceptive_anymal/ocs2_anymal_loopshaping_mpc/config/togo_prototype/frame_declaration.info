@@ -67,7 +67,8 @@ collisions {
     }
 }
 
-; These spheres are used exclusively by SelfCollisionAvoidanceCost. They do
+; These spheres are used by both SelfCollisionAvoidanceCost and
+; SelfCollisionConstraint. They do
 ; not participate in terrain SDF avoidance, so the wheels can still touch the
 ; ground during stance.
 selfCollisions {
@@ -118,5 +119,12 @@ selfCollisions {
         [3] "Lfr4_wheel, Lrr3_knee, 0.05"
         [4] "Lrr4_wheel, Lfr3_knee, 0.05"
         [5] "Lfr4_wheel, Lrr4_wheel, 0.05"
+        ; Diagonal wheel pairs across the body.
+        [6] "Lfl4_wheel, Lrr4_wheel, 0.05"
+        [7] "Lfr4_wheel, Lrl4_wheel, 0.05"
+        ; Left-right wheel pairs on each axle.
+        [8] "Lfl4_wheel, Lfr4_wheel, 0.05"
+        [9] "Lrl4_wheel, Lrr4_wheel, 0.05"
+        
     }
 }

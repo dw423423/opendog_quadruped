@@ -896,8 +896,8 @@ Visualization Manager:
             Value: ""
           Value: false
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: false
-          Name: Collisions
+          Enabled: true
+          Name: Self collision spheres
           Namespaces:
             {}
           Topic:
@@ -905,8 +905,8 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: visualization_marker_array
-          Value: false
+            Value: /ocs2_anymal/currentSelfCollisionSpheres
+          Value: true
       Enabled: true
       Name: Current
     - Class: rviz_common/Group

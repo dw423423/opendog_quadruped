@@ -295,18 +295,39 @@ namespace ocs2 {
         auto &deltaXSol = solution.deltaXSol;
         auto &deltaUSol = solution.deltaUSol;
         hpipm_status status;
-        const bool hasStateInputConstraints = !ocpDefinitions_.front().equalityConstraintPtr->empty();
-        if (hasStateInputConstraints && !settings_.projectStateInputEqualityConstraints) {
-            hpipmInterface_.resize(extractSizesFromProblem(dynamics_, cost_, &stateInputEqConstraints_));
-            status =
-                    hpipmInterface_.solve(delta_x0, dynamics_, cost_, &stateInputEqConstraints_, deltaXSol, deltaUSol,
-                                          settings_.printSolverStatus);
-        } else {
-            // without constraints, or when using projection, we have an unconstrained QP.
-            hpipmInterface_.resize(extractSizesFromProblem(dynamics_, cost_, nullptr));
-            status = hpipmInterface_.solve(delta_x0, dynamics_, cost_, nullptr, deltaXSol, deltaUSol,
-                                           settings_.printSolverStatus);
+        const int N = static_cast<int>(dynamics_.size());
+        inequalityConstraints_.resize(N + 1);
+        for (int k = 0; k <= N; ++k) {
+            const auto& stateIneq = stateIneqConstraints_[k];
+            const bool hasStateInputIneq = k < N && stateInputIneqConstraints_[k].f.size() > 0;
+            const int ni = stateIneq.f.size() + (hasStateInputIneq ? stateInputIneqConstraints_[k].f.size() : 0);
+            inequalityConstraints_[k].f.resize(ni);
+            inequalityConstraints_[k].dfdx.resize(ni, stateIneq.dfdx.cols());
+            inequalityConstraints_[k].dfdu.resize(ni, k < N ? dynamics_[k].dfdu.cols() : 0);
+            int row = 0;
+            if (stateIneq.f.size() > 0) {
+                inequalityConstraints_[k].f.middleRows(row, stateIneq.f.size()) = stateIneq.f;
+                inequalityConstraints_[k].dfdx.middleRows(row, stateIneq.f.size()) = stateIneq.dfdx;
+                if (k < N) inequalityConstraints_[k].dfdu.middleRows(row, stateIneq.f.size()).setZero();
+                row += stateIneq.f.size();
+            }
+            if (hasStateInputIneq) {
+                const auto& stateInputIneq = stateInputIneqConstraints_[k];
+                inequalityConstraints_[k].f.middleRows(row, stateInputIneq.f.size()) = stateInputIneq.f;
+                inequalityConstraints_[k].dfdx.middleRows(row, stateInputIneq.f.size()) = stateInputIneq.dfdx;
+                inequalityConstraints_[k].dfdu.middleRows(row, stateInputIneq.f.size()) = stateInputIneq.dfdu;
+            }
         }
+        const bool hasStateInputEqualities = !ocpDefinitions_.front().equalityConstraintPtr->empty() &&
+                                             !settings_.projectStateInputEqualityConstraints;
+        auto* equalities = hasStateInputEqualities ? &stateInputEqConstraints_ : nullptr;
+        auto qpSize = extractSizesFromProblem(dynamics_, cost_, &inequalityConstraints_);
+        if (equalities != nullptr) {
+            for (int k = 0; k <= N; ++k) qpSize.numIneqConstraints[k] += (*equalities)[k].f.size();
+        }
+        hpipmInterface_.resize(std::move(qpSize));
+        status = hpipmInterface_.solve(delta_x0, dynamics_, cost_, equalities, &inequalityConstraints_, deltaXSol,
+                                       deltaUSol, settings_.printSolverStatus);
 
         if (status != hpipm_status::SUCCESS) {
             throw std::runtime_error("[SqpSolver] Failed to solve QP");
