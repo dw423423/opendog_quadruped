@@ -117,6 +117,33 @@ auto QuadrupedKinematics<SCALAR_T>::collisionSpheresInBaseFrame(const switched_m
 }
 
 template <typename SCALAR_T>
+auto QuadrupedKinematics<SCALAR_T>::selfCollisionSpheresInBaseFrame(
+    const switched_model::joint_coordinate_s_t<SCALAR_T>& jointPositions) const -> std::vector<CollisionSphere> {
+  auto& data = pinocchioInterfacePtr_->getData();
+  const auto& model = pinocchioInterfacePtr_->getModel();
+  const auto pinocchioJointPositions = pinocchioMapping_.getPinocchioJointVector(jointPositions);
+  pinocchio::forwardKinematics(model, data, pinocchioJointPositions);
+
+  const auto& linkFrames = pinocchioMapping_.getSelfCollisionLinkFrameIds();
+  const auto& declarations = pinocchioMapping_.getSelfCollisionDeclaration();
+
+  std::vector<CollisionSphere> collisionSpheres;
+  collisionSpheres.reserve(linkFrames.size());
+  for (size_t i = 0; i < linkFrames.size(); ++i) {
+    const auto& transformation = pinocchio::updateFramePlacement(model, data, linkFrames[i]);
+    const switched_model::vector3_s_t<SCALAR_T> offset = declarations[i].offset.cast<SCALAR_T>();
+    collisionSpheres.push_back({transformation.act(offset), SCALAR_T(declarations[i].radius)});
+  }
+
+  return collisionSpheres;
+}
+
+template <typename SCALAR_T>
+std::vector<switched_model::SelfCollisionPair> QuadrupedKinematics<SCALAR_T>::selfCollisionPairs() const {
+  return pinocchioMapping_.getSelfCollisionPairs();
+}
+
+template <typename SCALAR_T>
 switched_model::vector3_s_t<SCALAR_T> QuadrupedKinematics<SCALAR_T>::relativeTranslationInBaseFrame(
     const switched_model::joint_coordinate_s_t<SCALAR_T>& jointPositions, pinocchio::FrameIndex frame) const {
   auto& data = pinocchioInterfacePtr_->getData();

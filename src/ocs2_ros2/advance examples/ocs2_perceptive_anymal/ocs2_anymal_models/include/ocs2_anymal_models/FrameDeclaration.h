@@ -15,6 +15,12 @@ struct CollisionDeclaration {
   switched_model::vector3_t offset;
 };
 
+struct SelfCollisionPairDeclaration {
+  std::string first;
+  std::string second;
+  switched_model::scalar_t minimumDistance;
+};
+
 struct LimbFrames {
   std::string root;
   std::string tip;
@@ -25,7 +31,11 @@ struct LimbFrames {
 struct FrameDeclaration {
   std::string root;
   switched_model::feet_array_t<LimbFrames> legs;
+  /** Collision bodies used only for terrain SDF avoidance. */
   std::vector<CollisionDeclaration> collisions;
+  /** Collision bodies and pairs used only for robot self-collision avoidance. */
+  std::vector<CollisionDeclaration> selfCollisions;
+  std::vector<SelfCollisionPairDeclaration> selfCollisionPairs;
 };
 
 std::vector<std::string> getJointNames(const FrameDeclaration& frameDeclaration);

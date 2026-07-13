@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME}
         src/cost/LinearStateInequalitySoftConstraint.cpp
         src/cost/MotionTrackingCost.cpp
         src/cost/MotionTrackingTerminalCost.cpp
+        src/cost/SelfCollisionAvoidanceCost.cpp
         src/cost/TorqueLimitsSoftConstraint.cpp
         src/foot_planner/KinematicFootPlacementPenalty.cpp
         src/foot_planner/CubicSpline.cpp
@@ -106,6 +107,7 @@ if(BUILD_TESTING)
     ament_add_gtest(test_${PROJECT_NAME}_cost
             test/cost/testFootplacementCost.cpp
             test/cost/testFrictionConeCost.cpp
+            test/cost/testSelfCollisionAvoidanceCost.cpp
             test/cost/testTorqueLimitsSoftConstraint.cpp
     )
     target_link_libraries(test_${PROJECT_NAME}_cost ${PROJECT_NAME})

@@ -8,6 +8,7 @@
 #include <ocs2_oc/approximate_model/LinearQuadraticApproximator.h>
 #include <ocs2_core/penalties/penalties/SquaredHingePenalty.h>
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
+#include <ocs2_switched_model_interface/cost/SelfCollisionAvoidanceCost.h>
 #include <ocs2_switched_model_interface/constraint/SameSideFootSeparationConstraint.h>
 #include <ocs2_switched_model_interface/core/TorqueApproximation.h>
 
@@ -42,6 +43,13 @@ QuadrupedPointfootInterface::QuadrupedPointfootInterface(const kinematic_model_t
   problemPtr_->costPtr->add("MotionTrackingCost", createMotionTrackingCost());
   problemPtr_->stateCostPtr->add("FootPlacementCost", createFootPlacementCost());
   problemPtr_->stateCostPtr->add("CollisionAvoidanceCost", createCollisionAvoidanceCost());
+  if (modelSettings().enableSelfCollisionAvoidance_) {
+    problemPtr_->stateCostPtr->add(
+        "SelfCollisionAvoidanceCost",
+        std::make_unique<SelfCollisionAvoidanceCost>(ocs2::ThresholdRelaxedBarrierPenalty::Config{
+            modelSettings().muSelfCollision_, modelSettings().deltaSelfCollision_,
+            modelSettings().selfCollisionActivationDistance_}));
+  }
   if (modelSettings().minimumSameSideFootSeparation_ > 0.0) {
     const auto minimumSeparation =
         modelSettings().minimumSameSideFootSeparation_;

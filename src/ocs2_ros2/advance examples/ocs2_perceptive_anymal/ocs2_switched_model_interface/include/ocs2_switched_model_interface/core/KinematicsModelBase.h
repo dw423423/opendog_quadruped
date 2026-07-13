@@ -114,8 +114,17 @@ namespace switched_model {
             const base_coordinate_s_t<SCALAR_T> &basePoseInOriginFrame,
             const joint_coordinate_s_t<SCALAR_T> &jointPositions) const;
 
+        std::vector<CollisionSphere> selfCollisionSpheresInOriginFrame(
+            const base_coordinate_s_t<SCALAR_T> &basePoseInOriginFrame,
+            const joint_coordinate_s_t<SCALAR_T> &jointPositions) const;
+
         virtual std::vector<CollisionSphere> collisionSpheresInBaseFrame(
             const joint_coordinate_s_t<SCALAR_T> &jointPositions) const;
+
+        virtual std::vector<CollisionSphere> selfCollisionSpheresInBaseFrame(
+            const joint_coordinate_s_t<SCALAR_T> &jointPositions) const;
+
+        virtual std::vector<SelfCollisionPair> selfCollisionPairs() const;
     };
 
     extern template class KinematicsModelBase<scalar_t>;

@@ -21,7 +21,7 @@ def generate_launch_description():
     base_launch = package_share + '/launch/togo_prototype_perceptive_mpc_demo.launch.py'
 
     return LaunchDescription([
-        DeclareLaunchArgument(name='forward_distance', default_value='7.0'),
+        DeclareLaunchArgument(name='forward_distance', default_value='6.0'),
         DeclareLaunchArgument(name='export_dataset', default_value='true'),
         DeclareLaunchArgument(
             name='export_dataset_dir', default_value=export_dataset_dir),
@@ -40,3 +40,6 @@ def generate_launch_description():
                 'export_dataset_dir': LaunchConfiguration('export_dataset_dir'),
             }.items()),
     ])
+
+
+#六层楼梯

@@ -66,6 +66,12 @@ namespace switched_model {
             return collisionSpheresInOriginFrame_;
         }
 
+        const std::vector<kinematic_model_t::CollisionSphere> &selfCollisionSpheresInOriginFrame() const {
+            return selfCollisionSpheresInOriginFrame_;
+        }
+
+        const std::vector<SelfCollisionPair> &selfCollisionPairs() const { return selfCollisionPairs_; }
+
         const CostElements<scalar_t> &getMotionReference() const { return motionReference_; }
         const vector_t &getStateReference() const { return stateReference_; }
 
@@ -82,6 +88,10 @@ namespace switched_model {
 
         const std::vector<matrix_t> &collisionSpheresInOriginFrameStateDerivative() const {
             return collisionSpheresDerivative_;
+        }
+
+        const std::vector<matrix_t> &selfCollisionSpheresInOriginFrameStateDerivative() const {
+            return selfCollisionSpheresDerivative_;
         }
 
     protected:
@@ -116,6 +126,8 @@ namespace switched_model {
         std::unique_ptr<ocs2::CppAdInterface> intermediateLinearOutputAdInterface_;
         std::unique_ptr<ocs2::CppAdInterface> prejumpLinearOutputAdInterface_;
         std::vector<scalar_t> collisionRadii_; // Does not include those for the feet
+        std::vector<scalar_t> selfCollisionRadii_;
+        std::vector<SelfCollisionPair> selfCollisionPairs_;
 
         // ===== Storage for the precomputation ===
         scalar_t robotMass_;
@@ -133,6 +145,7 @@ namespace switched_model {
         joint_coordinate_t jointTorques_;
         std::vector<bool> collisionSpheresActive_;
         std::vector<kinematic_model_t::CollisionSphere> collisionSpheresInOriginFrame_;
+        std::vector<kinematic_model_t::CollisionSphere> selfCollisionSpheresInOriginFrame_;
         CostElements<scalar_t> motionReference_;
         vector_t stateReference_;
 
@@ -141,6 +154,7 @@ namespace switched_model {
         feet_array_t<VectorFunctionLinearApproximation> feetVelocitiesInOriginFrameDerivative_;
         VectorFunctionLinearApproximation jointTorquesDerivative_;
         std::vector<matrix_t> collisionSpheresDerivative_;
+        std::vector<matrix_t> selfCollisionSpheresDerivative_;
 
         /// Friend access for unit testing purposes
         friend SwitchedModelPreComputationMockup;
@@ -174,6 +188,13 @@ namespace switched_model {
             return collisionSpheresInOriginFrame_;
         }
 
+        std::vector<kinematic_model_t::CollisionSphere> &selfCollisionSpheresInOriginFrame() {
+            return selfCollisionSpheresInOriginFrame_;
+        }
+
+        std::vector<SelfCollisionPair> &selfCollisionPairs() { return selfCollisionPairs_; }
+
         std::vector<matrix_t> &collisionSpheresDerivative() { return collisionSpheresDerivative_; }
+        std::vector<matrix_t> &selfCollisionSpheresDerivative() { return selfCollisionSpheresDerivative_; }
     };
 } // namespace switched_model

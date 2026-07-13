@@ -8,6 +8,7 @@
 #include <ocs2_switched_model_interface/core/TorqueApproximation.h>
 
 #include <memory>
+#include <stdexcept>
 
 namespace switched_model {
     SwitchedModelPreComputation::SwitchedModelPreComputation(const SwingTrajectoryPlanner &swingTrajectoryPlanner,
@@ -34,11 +35,25 @@ namespace switched_model {
             collisionRadii_.push_back(collision.radius);
         }
 
+        const auto initSelfCollisions = kinematicModel.selfCollisionSpheresInBaseFrame(joint_coordinate_t::Zero());
+        for (const auto &collision: initSelfCollisions) {
+            selfCollisionRadii_.push_back(collision.radius);
+        }
+        selfCollisionPairs_ = kinematicModel.selfCollisionPairs();
+        for (const auto& pair : selfCollisionPairs_) {
+            if (pair.first == pair.second || pair.first >= selfCollisionRadii_.size() ||
+                pair.second >= selfCollisionRadii_.size() || pair.minimumDistance < 0.0) {
+                throw std::runtime_error("Invalid self-collision pair declaration.");
+            }
+        }
+
         // Resize collision containers
         const size_t maxNumCollisions = NUM_CONTACT_POINTS + collisionRadii_.size();
         collisionSpheresActive_.resize(maxNumCollisions);
         collisionSpheresInOriginFrame_.resize(maxNumCollisions);
         collisionSpheresDerivative_.resize(maxNumCollisions);
+        selfCollisionSpheresInOriginFrame_.resize(selfCollisionRadii_.size());
+        selfCollisionSpheresDerivative_.resize(selfCollisionRadii_.size());
 
         // pre jump linear outputs
         std::string prejumpLibName = settings.robotName_ + "_Precomputation_prejumpLinearOutputs";
@@ -66,9 +81,13 @@ namespace switched_model {
           intermediateLinearOutputAdInterface_(new ocs2::CppAdInterface(*other.intermediateLinearOutputAdInterface_)),
           prejumpLinearOutputAdInterface_(new ocs2::CppAdInterface(*other.prejumpLinearOutputAdInterface_)),
           collisionRadii_(other.collisionRadii_),
+          selfCollisionRadii_(other.selfCollisionRadii_),
+          selfCollisionPairs_(other.selfCollisionPairs_),
           collisionSpheresActive_(other.collisionSpheresActive_),
           collisionSpheresInOriginFrame_(other.collisionSpheresInOriginFrame_),
           collisionSpheresDerivative_(other.collisionSpheresDerivative_),
+          selfCollisionSpheresInOriginFrame_(other.selfCollisionSpheresInOriginFrame_),
+          selfCollisionSpheresDerivative_(other.selfCollisionSpheresDerivative_),
           tapedStateInput_(other.tapedStateInput_),
           robotMass_(other.robotMass_) {
     }
@@ -172,9 +191,10 @@ namespace switched_model {
             basePose, baseTwist, qJoints, dqJoints);
         const auto jointTorques = torqueApproximation(qJoints, contactForcesInBase, adKinematicsModel);
         const auto o_collisions = adKinematicsModel.collisionSpheresInOriginFrame(basePose, qJoints);
+        const auto o_selfCollisions = adKinematicsModel.selfCollisionSpheresInOriginFrame(basePose, qJoints);
 
         const int numberOfOutputs = 3 * NUM_CONTACT_POINTS + 3 * NUM_CONTACT_POINTS + JOINT_COORDINATE_SIZE + 3 *
-                                    o_collisions.size();
+                                    (o_collisions.size() + o_selfCollisions.size());
         outputs.resize(numberOfOutputs);
 
         outputs.head<3 * NUM_CONTACT_POINTS>() = fromArray(o_feetPositionsAsArray);
@@ -183,6 +203,10 @@ namespace switched_model {
 
         int i = 3 * NUM_CONTACT_POINTS + 3 * NUM_CONTACT_POINTS + JOINT_COORDINATE_SIZE;
         for (const auto &sphere: o_collisions) {
+            outputs.segment<3>(i) = sphere.position;
+            i += 3;
+        }
+        for (const auto &sphere: o_selfCollisions) {
             outputs.segment<3>(i) = sphere.position;
             i += 3;
         }
@@ -223,6 +247,15 @@ namespace switched_model {
             collisionSpheresInOriginFrame_[collisionGlobalId].position = intermediateLinearOutputs.segment<3>(
                 indexInOutputs);
             collisionSpheresInOriginFrame_[collisionGlobalId].radius = collisionRadii_[collisionIndex];
+        }
+
+        // Read self-collision bodies. They are deliberately kept separate from the terrain SDF bodies.
+        const int selfCollisionOutputOffset = JOINT_COORDINATE_SIZE + 3 * (
+                NUM_CONTACT_POINTS + NUM_CONTACT_POINTS + collisionRadii_.size());
+        for (int collisionIndex = 0; collisionIndex < selfCollisionRadii_.size(); ++collisionIndex) {
+            const int indexInOutputs = selfCollisionOutputOffset + 3 * collisionIndex;
+            selfCollisionSpheresInOriginFrame_[collisionIndex].position = intermediateLinearOutputs.segment<3>(indexInOutputs);
+            selfCollisionSpheresInOriginFrame_[collisionIndex].radius = selfCollisionRadii_[collisionIndex];
         }
     }
 
@@ -268,6 +301,14 @@ namespace switched_model {
             const auto collisionGlobalId = NUM_CONTACT_POINTS + collisionIndex;
             collisionSpheresActive_[collisionGlobalId] = true;
             collisionSpheresDerivative_[collisionGlobalId] = intermediateLinearOutputDerivatives.block<3, STATE_DIM>(
+                indexInOutputs, 0);
+        }
+
+        const int selfCollisionOutputOffset = JOINT_COORDINATE_SIZE + 3 * (
+                NUM_CONTACT_POINTS + NUM_CONTACT_POINTS + collisionRadii_.size());
+        for (int collisionIndex = 0; collisionIndex < selfCollisionRadii_.size(); ++collisionIndex) {
+            const int indexInOutputs = selfCollisionOutputOffset + 3 * collisionIndex;
+            selfCollisionSpheresDerivative_[collisionIndex] = intermediateLinearOutputDerivatives.block<3, STATE_DIM>(
                 indexInOutputs, 0);
         }
     }

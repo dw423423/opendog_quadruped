@@ -42,6 +42,13 @@ namespace switched_model {
         scalar_t muSdf_ = 2.5;
         scalar_t deltaSdf_ = 0.005;
 
+        // Self-collision threshold barrier parameters. The penalty is inactive
+        // above selfCollisionActivationDistance_.
+        bool enableSelfCollisionAvoidance_ = true;
+        scalar_t muSelfCollision_ = 0.1;
+        scalar_t deltaSelfCollision_ = 0.005;
+        scalar_t selfCollisionActivationDistance_ = 0.05;
+
         // Joint Limits
         joint_coordinate_t lowerJointLimits_ = joint_coordinate_t::Constant(-1e30);
         joint_coordinate_t upperJointLimits_ = joint_coordinate_t::Constant(1e30);

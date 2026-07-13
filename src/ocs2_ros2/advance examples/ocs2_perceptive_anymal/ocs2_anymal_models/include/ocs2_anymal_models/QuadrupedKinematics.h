@@ -46,6 +46,11 @@ class QuadrupedKinematics final : public switched_model::KinematicsModelBase<SCA
   std::vector<CollisionSphere> collisionSpheresInBaseFrame(
       const switched_model::joint_coordinate_s_t<SCALAR_T>& jointPositions) const override;
 
+  std::vector<CollisionSphere> selfCollisionSpheresInBaseFrame(
+      const switched_model::joint_coordinate_s_t<SCALAR_T>& jointPositions) const override;
+
+  std::vector<switched_model::SelfCollisionPair> selfCollisionPairs() const override;
+
  private:
   QuadrupedKinematics(const QuadrupedKinematics& rhs);
 

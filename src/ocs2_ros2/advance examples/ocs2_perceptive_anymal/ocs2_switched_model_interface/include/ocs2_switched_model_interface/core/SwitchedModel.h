@@ -40,6 +40,13 @@ namespace switched_model {
     using ocs2::vector_array_t;
     using ocs2::vector_t;
 
+    /** Pair of self-collision spheres, indexed in the self-collision sphere list. */
+    struct SelfCollisionPair {
+        size_t first;
+        size_t second;
+        scalar_t minimumDistance;
+    };
+
     using ocs2::ScalarFunctionQuadraticApproximation;
     using ocs2::VectorFunctionLinearApproximation;
     using ocs2::VectorFunctionQuadraticApproximation;

@@ -60,6 +60,12 @@ namespace switched_model {
                                        prefix + "minimumSameSideFootSeparation", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muSdf_, prefix + "muSdf", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaSdf_, prefix + "deltaSdf", verbose);
+        ocs2::loadData::loadPtreeValue(pt, modelSettings.enableSelfCollisionAvoidance_,
+                                       prefix + "enableSelfCollisionAvoidance", verbose);
+        ocs2::loadData::loadPtreeValue(pt, modelSettings.muSelfCollision_, prefix + "muSelfCollision", verbose);
+        ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaSelfCollision_, prefix + "deltaSelfCollision", verbose);
+        ocs2::loadData::loadPtreeValue(pt, modelSettings.selfCollisionActivationDistance_,
+                                       prefix + "selfCollisionActivationDistance", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muJointsPosition_, prefix + "muJointsPosition", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.deltaJointsPosition_, prefix + "deltaJointsPosition", verbose);
         ocs2::loadData::loadPtreeValue(pt, modelSettings.muJointsVelocity_, prefix + "muJointsVelocity", verbose);

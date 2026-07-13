@@ -45,7 +45,7 @@
 `x=[4.8, 7.8]` m。对应启动入口会自动使用正确的高度缩放和地图原点：
 
 ```bash
-ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch.py
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch.py forward_velocity:=0.5
 ```
 
 ### 1.2 下台阶
@@ -60,23 +60,45 @@ ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch
 | 前后平台长度 | 各 3.0 m |
 | 边界宽度 | 1.0 m |
 
+实现地图：`stairs_down_6x10cm.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+其分辨率为 0.02 m，尺寸为 7.80 m × 2.00 m；行走方向为 world x 正方向：
+前平台 `x=[0.0, 3.0)` m 的源高度为 0.60 m，六级台阶在
+`x=[3.0, 4.8)` m 内每级下降 0.10 m，后平台 `x=[4.8, 7.8]` m 的源高度为
+0 m。地图加载时会在 world 原点处归零，因此运行时高度从起点的 0 m 逐级降至
+终点的 -0.60 m。对应启动入口会自动使用正确的高度缩放和地图原点：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_down_mpc_demo.launch.py forward_velocity:=0.5
+
+```
+
 ### 1.3 平地
 
 全场平地，无任何起伏。尺寸同上（7.80 m × 2.0 m），或任意足够机器狗行走 10 秒的长度即可。
 
+实现地图：`flat_7p8x2m.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+其分辨率为 0.02 m，尺寸为 7.80 m × 2.00 m，所有像素高度均为 0 m；行走方向
+为 world x 正方向，地图中心为 `(3.9, 0.0)` m。对应启动入口：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_flat_mpc_demo.launch.py forward_velocity:=0.5
+```
+
 ### 1.4 随机箱体
 
-在平坦地面上，以网格方式排列不同高度的方形箱体。机器人行走时会遇到随机间隔出现的障碍物。
+在平坦地面上，以网格方式随机排列高度相同的方形箱体。机器人行走时会遇到随机间隔出现的障碍物。
 
 ```
-俯视图:
+俯视图（布局示意）:
 
   ┌──────┬──────┬──────┬──────┬──────┐
-  │ 0.11 │      │ 0.03 │ 0.20 │      │
+  │ 0.11 │      │ 0.11 │ 0.11 │      │
   ├──────┼──────┼──────┼──────┼──────┤  ← 每格 0.45m × 0.45m
-  │      │ 0.08 │ 0.15 │      │ 0.05 │     数字 = 箱体高度 (m)
+  │      │ 0.11 │ 0.11 │      │ 0.11 │     数字 = 箱体高度 (m)
   ├──────┼──────┼──────┼──────┼──────┤     空白 = 无箱体
-  │ 0.18 │      │      │ 0.11 │      │
+  │ 0.11 │      │      │ 0.11 │      │
   └──────┴──────┴──────┴──────┴──────┘
           ← 前进方向 x →
 ```
@@ -89,6 +111,19 @@ ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch
 | 箱体区域长度 | 3.0 m | 铺有箱体的区域（≈ 6~7 列网格） |
 | 总长度 | 7.0 m | 2.0 + 3.0 + 2.0 |
 | 总宽度 | ≥ 2.0 m | |
+
+实现地图：`random_boxes_11cm.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+它以 0.01 m 分辨率表示 7.00 m × 2.00 m 的场地：前平台为
+`x=[0.0, 2.0)` m，箱体区域为 `x=[2.0, 5.0)` m，后平台为
+`x=[5.0, 7.0]` m。箱体网格为 6 × 4，每格 0.45 m × 0.45 m，位于
+`x=[2.15, 4.85)` m、`y=[-0.90, 0.90)` m；四周保留 0.15 m（x）和
+0.10 m（y）空白边距。使用固定随机种子 `20260710` 和 0.40 占用概率，生成
+9 个高度为 0.11 m 的箱体，便于重复采集相同场景。对应启动入口：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_random_boxes_mpc_demo.launch.py forward_velocity:=0.5
+```
 
 ### 1.5 随机粗糙地面
 
@@ -111,6 +146,18 @@ ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch
 | 总长度 | 8.0 m | |
 | 总宽度 | ≥ 2.0 m | |
 
+实现地图：`rough_terrain_8m_8cm.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+其分辨率为 0.01 m，尺寸为 8.00 m × 2.00 m，使用固定随机种子 `20260711`
+生成连续的双线性插值随机场，并将高度量化为 0.01 m。地图源高度以 0.08 m 为
+基准，在 `0.00–0.16 m` 内变化；加载器在 world 原点处归零后，实际地形高度为
+`[-0.08, +0.08]` m。地图四周均设有 0.25 m 的平滑过渡带，起点和终点处的
+高度为 0 m。对应启动入口：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_rough_terrain_mpc_demo.launch.py forward_velocity:=0.5
+```
+
 ### 1.6 上坡斜面
 
 平滑的向上倾斜平面，机器人从低处走向高处。
@@ -132,6 +179,17 @@ ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch
 | 边界宽度 | 0.25 m | 斜坡两侧的过渡带 |
 | 总长度 | 8.0 m | |
 
+实现地图：`slope_up_0p2rad_8m.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+其分辨率为 0.01 m，尺寸为 8.00 m × 2.00 m：前平台为
+`x=[0.0, 2.0)` m，斜坡为 `x=[2.0, 6.0)` m，后平台为 `x=[6.0, 8.0]` m。
+中心线高差为 `4.0 × tan(0.2) = 0.81084 m`；`|y|>0.75 m` 的两侧 0.25 m
+区域平滑过渡。对应启动入口：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_slope_up_mpc_demo.launch.py forward_velocity:=0.5
+```
+
 ### 1.7 下坡斜面
 
 平滑的向下倾斜平面，与上坡对称，机器人从高处走向低处。
@@ -141,6 +199,16 @@ ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_stairs_up_mpc_demo.launch
 | 坡度 | 0.2 rad (≈ 11.5°) |
 | 平台宽度 | 2.0 m |
 | 边界宽度 | 0.25 m |
+
+实现地图：`slope_down_0p2rad_8m.png`，位于
+`src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/data/`。
+其几何尺寸、0.01 m 分辨率和两侧 0.25 m 过渡带与上坡完全相同；沿 world x
+正方向，前平台和斜坡从高处连续下降至后平台。地图加载时以前平台 world 原点归零，
+运行时高度从 0 m 降至 `-0.81084 m`。对应启动入口：
+
+```bash
+ros2 launch ocs2_anymal_loopshaping_mpc togo_prototype_slope_down_mpc_demo.launch.py forward_velocity:=0.5
+```
 
 ---
 

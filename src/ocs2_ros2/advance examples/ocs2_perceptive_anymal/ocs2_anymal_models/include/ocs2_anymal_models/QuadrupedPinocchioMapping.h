@@ -28,6 +28,9 @@ class QuadrupedPinocchioMapping {
 
   const std::vector<size_t>& getCollisionLinkFrameIds() const { return collisionLinkFrameIds_; }
   const std::vector<CollisionDeclaration>& getCollisionDeclaration() const { return collisionDeclaration_; }
+  const std::vector<size_t>& getSelfCollisionLinkFrameIds() const { return selfCollisionLinkFrameIds_; }
+  const std::vector<CollisionDeclaration>& getSelfCollisionDeclaration() const { return selfCollisionDeclaration_; }
+  const std::vector<switched_model::SelfCollisionPair>& getSelfCollisionPairs() const { return selfCollisionPairs_; }
 
   const std::vector<std::string>& getOcs2JointNames() const { return ocs2JointNames_; }
 
@@ -46,6 +49,9 @@ class QuadrupedPinocchioMapping {
   // Collisions
   std::vector<size_t> collisionLinkFrameIds_;
   std::vector<CollisionDeclaration> collisionDeclaration_;
+  std::vector<size_t> selfCollisionLinkFrameIds_;
+  std::vector<CollisionDeclaration> selfCollisionDeclaration_;
+  std::vector<switched_model::SelfCollisionPair> selfCollisionPairs_;
 
   // Feet ordering
   switched_model::feet_array_t<size_t> mapFeetOrderOcs2ToPinocchio_;

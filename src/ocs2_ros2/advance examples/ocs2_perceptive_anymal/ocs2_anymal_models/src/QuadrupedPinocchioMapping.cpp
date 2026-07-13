@@ -20,6 +20,24 @@ QuadrupedPinocchioMapping::QuadrupedPinocchioMapping(const FrameDeclaration& fra
     collisionLinkFrameIds_.push_back(getBodyId(collision.link, pinocchioInterface));
   }
   collisionDeclaration_ = frameDeclaration.collisions;
+
+  for (const auto& collision : frameDeclaration.selfCollisions) {
+    selfCollisionLinkFrameIds_.push_back(getBodyId(collision.link, pinocchioInterface));
+  }
+  selfCollisionDeclaration_ = frameDeclaration.selfCollisions;
+
+  const auto getSelfCollisionIndex = [&](const std::string& linkName) {
+    const auto iterator = std::find_if(selfCollisionDeclaration_.begin(), selfCollisionDeclaration_.end(),
+                                       [&](const CollisionDeclaration& declaration) { return declaration.link == linkName; });
+    if (iterator == selfCollisionDeclaration_.end()) {
+      throw std::runtime_error("[QuadrupedPinocchioMapping] Self-collision link " + linkName + " is not declared.");
+    }
+    return static_cast<size_t>(std::distance(selfCollisionDeclaration_.begin(), iterator));
+  };
+  for (const auto& pair : frameDeclaration.selfCollisionPairs) {
+    selfCollisionPairs_.push_back(
+        {getSelfCollisionIndex(pair.first), getSelfCollisionIndex(pair.second), pair.minimumDistance});
+  }
 }
 
 namespace {

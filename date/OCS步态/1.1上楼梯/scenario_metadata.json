@@ -1,0 +1,34 @@
+{
+  "config_name": "togo_prototype",
+  "robot_urdf": "robot.urdf",
+  "urdf_source_path": "/home/mm/opendog_quadruped/src/ToGo.Prototype/urdf/ToGo.Prototype_abs.urdf",
+  "terrain_name": "stairs_up_6x10cm.png",
+  "terrain_source_path": "/home/mm/opendog_quadruped/src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/src/../../ocs2_anymal_loopshaping_mpc/data/stairs_up_6x10cm.png",
+  "terrain_source_image": "terrain_source.png",
+  "terrain_scale": 0.607142857143,
+  "forward_velocity": 0.5,
+  "forward_distance": 6.0,
+  "adapt_reference_to_terrain": true,
+  "terrain_maps": {
+    "elevation":     {
+      "layer": "elevation",
+      "matrix_file": "terrain_elevation.csv",
+      "points_file": "terrain_elevation_points.csv",
+      "shape": [390, 100],
+      "resolution": 0.02,
+      "frame": "world",
+      "center_position_xy": [3.9, 0.0],
+      "length_xy": [7.8, 2.0]
+    },
+    "filtered_elevation":     {
+      "layer": "elevation",
+      "matrix_file": "terrain_filtered_elevation.csv",
+      "points_file": "terrain_filtered_elevation_points.csv",
+      "shape": [390, 100],
+      "resolution": 0.02,
+      "frame": "world",
+      "center_position_xy": [3.9, 0.0],
+      "length_xy": [7.8, 2.0]
+    }
+  }
+}

@@ -66,3 +66,57 @@ collisions {
         (3,2) 0.0
     }
 }
+
+; These spheres are used exclusively by SelfCollisionAvoidanceCost. They do
+; not participate in terrain SDF avoidance, so the wheels can still touch the
+; ground during stance.
+selfCollisions {
+    collisionSpheres {
+        ; These knee spheres conservatively enclose the complete knee-link mesh.
+        [0] "Lrl3_knee, 0.22"
+        [1] "Lrr3_knee, 0.22"
+        [2] "Lfl3_knee, 0.22"
+        [3] "Lfr3_knee, 0.22"
+        ; Each wheel sphere encloses the 0.09 m-radius wheel and its 0.046 m width.
+        [4] "Lfl4_wheel, 0.095"
+        [5] "Lfr4_wheel, 0.095"
+        [6] "Lrl4_wheel, 0.095"
+        [7] "Lrr4_wheel, 0.095"
+    }
+    collisionOffsets {
+        (0,0) 0.0144
+        (0,1) -0.0990
+        (0,2) 0.1285
+        (1,0) -0.0144
+        (1,1) -0.0990
+        (1,2) 0.1285
+        (2,0) 0.0144
+        (2,1) -0.0990
+        (2,2) 0.1285
+        (3,0) -0.0144
+        (3,1) -0.0990
+        (3,2) 0.1285
+        (4,0) 0.011
+        (4,1) 0.0
+        (4,2) 0.0
+        (5,0) -0.011
+        (5,1) 0.0
+        (5,2) 0.0
+        (6,0) 0.011
+        (6,1) 0.0
+        (6,2) 0.0
+        (7,0) -0.011
+        (7,1) 0.0
+        (7,2) 0.0
+    }
+    ; first link, second link, requested surface clearance [m]
+    pairs {
+        ; Front wheel against the rear leg, and vice versa, on each side.
+        [0] "Lfl4_wheel, Lrl3_knee, 0.05"
+        [1] "Lrl4_wheel, Lfl3_knee, 0.05"
+        [2] "Lfl4_wheel, Lrl4_wheel, 0.05"
+        [3] "Lfr4_wheel, Lrr3_knee, 0.05"
+        [4] "Lrr4_wheel, Lfr3_knee, 0.05"
+        [5] "Lfr4_wheel, Lrr4_wheel, 0.05"
+    }
+}

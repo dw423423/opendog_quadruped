@@ -1,0 +1,5 @@
+# Parameters for the 0.02 m-resolution flat_7p8x2m.png height map.
+/**:
+  ros__parameters:
+    preprocessing:
+      resolution: 0.02
