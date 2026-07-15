@@ -123,8 +123,8 @@ initialState
   (0,0) 0.0  ; px
   (1,0) 0.0  ; py
   (2,0) 0.0  ; thetaz
-  (3,0) 0.0  ; thetay
-  (4,0) 0.0  ; thetax
+  (3,0) -0.0153340  ; thetay, static trim (-0.878576 deg)
+  (4,0)  0.0168696  ; thetax, static trim (+0.966555 deg)
 
   (5,0) 0.0  ; px_dot
   (6,0) 0.0  ; py_dot
@@ -178,6 +178,5 @@ Q_final
   (8,8) 0.0  ; thetay_dot
   (9,9) 0.0  ; thetax_dot
 }
-
 
 

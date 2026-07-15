@@ -63,7 +63,7 @@ class LinearPolicy(BasePolicy):
         self.name = "LinearPolicy"
         self.observation_dimension = config.OBSERVATION_DIM
         self.action_dimension = config.ACTION_DIM
-        self.linear = torch.nn.Linear(self.observation_dimension, self.action_dimension)
+        self.linear = torch.nn.Linear(self.observation_dimension, self.action_dimension, bias=False,)
 
     def forward(self, observation: torch.Tensor) -> Tuple[torch.Tensor]:
         """Forward method.

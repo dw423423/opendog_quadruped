@@ -47,7 +47,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace ocs2::legged_robot
 {
-    class LeggedRobotVisualizer final : public DummyObserver
+    class LeggedRobotVisualizer : public DummyObserver
     {
     public:
         /** Visualization settings (publicly available) */

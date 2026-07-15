@@ -195,7 +195,7 @@ WEIGHTS_FOR_GAITS:
   trot_2: 2.0
 # settings for data generation
 DATA_GENERATION_TIME_STEP: 0.0025
-DATA_GENERATION_DURATION: 4.0
+DATA_GENERATION_DURATION: 20.0
 DATA_GENERATION_DATA_DECIMATION: 4
 DATA_GENERATION_THREADS: 12
 DATA_GENERATION_TASKS: 12
@@ -227,14 +227,17 @@ DATA_GENERATION_SAMPLING_VARIANCE:
   - 0.00872664625  # joint position RH KFE: 0.5 / 180.0 * pi
 # settings for computing metrics
 POLICY_EVALUATION_TIME_STEP: 0.0025
-POLICY_EVALUATION_DURATION: 4.0
+POLICY_EVALUATION_DURATION: 20.0     #表示只使用神经网络运行3秒进行评估。训练代码默认评估时 alpha=0，也就是 MPC 不参与控制。
 POLICY_EVALUATION_THREADS: 3
-POLICY_EVALUATION_TASKS: 3
+POLICY_EVALUATION_TASKS: 3       #任务数太少时，评估指标随机性较大。可能刚好抽到简单任务，就误认为模型很好。
+#
 #
 # training
 #
-BATCH_SIZE: 128
-LEARNING_RATE: 1.e-3
-LEARNING_ITERATIONS: 100000
-GRADIENT_CLIPPING: True
-GRADIENT_CLIPPING_VALUE: 1
+BATCH_SIZE: 128   #每次梯度更新时，从 replay memory 里随机取 n 条 MPC 数据来训练。
+LEARNING_RATE: 1.e-3  #学习率
+LEARNING_ITERATIONS: 100000     #训练迭代次数。训练循环会执行 n 次 optimizer step。
+GRADIENT_CLIPPING: True  #开启梯度裁剪。意思是如果一次反向传播算出来的梯度太大，就把它压小，避免模型参数突然跳太远。
+GRADIENT_CLIPPING_VALUE: 1    #梯度裁剪阈值。作用是限制所有网络参数的总梯度范数，防止 Hamiltonian Loss 产生非常大的更新。
+
+

@@ -125,14 +125,80 @@ class BallbotMpcnet(mpcnet.Mpcnet):
         mode_schedules = helper.get_mode_schedule_array(tasks_number)
         target_trajectories = helper.get_target_trajectories_array(tasks_number)
         for i in range(tasks_number):
+            # system_observation = helper.get_system_observation(
+            #     initial_mode, initial_time, self.get_random_initial_state(), np.zeros(self.config.INPUT_DIM)
+            # )
+            # initial_observations[i] = system_observation
+            # mode_schedules[i] = helper.get_mode_schedule(*self.get_default_event_times_and_mode_sequence(duration))
+            # target_trajectories[i] = helper.get_target_trajectories(
+            #     np.array([duration], dtype=np.float64),
+            #     self.get_random_target_state().reshape((1, self.config.TARGET_STATE_DIM)),
+            #     np.zeros((1, self.config.TARGET_INPUT_DIM)),
+            # )
+
+            target_state = self.get_random_target_state()
+            draw = np.random.rand()
+
+            if draw < 0.20:
+                # 20%：精确平衡任务，x = x_ref
+                # initial_state = target_state.copy()
+
+
+                target_state = np.array(
+                self.config.DEFAULT_TARGET_STATE,
+                dtype=np.float64,
+                )
+
+                initial_state = target_state.copy()
+
+                # pitch / roll 小扰动
+                initial_state[3] += np.random.uniform(
+                    -np.deg2rad(1.0),
+                    np.deg2rad(1.0),
+                )
+                initial_state[4] += np.random.uniform(
+                    -np.deg2rad(1.0),
+                    np.deg2rad(1.0),
+                )
+
+                # vx / vy 小扰动
+                initial_state[5] += np.random.uniform(-0.03, 0.03)
+                initial_state[6] += np.random.uniform(-0.03, 0.03)
+
+                # pitch_rate / roll_rate 小扰动
+                initial_state[8] += np.random.uniform(
+                    -np.deg2rad(5.0),
+                    np.deg2rad(5.0),
+                )
+                initial_state[9] += np.random.uniform(
+                    -np.deg2rad(5.0),
+                    np.deg2rad(5.0),
+                )
+
+            elif draw < 0.50:
+                # 30%：近平衡任务
+                error = np.zeros(self.config.STATE_DIM)
+                error[0:2] = np.random.uniform(-0.01, 0.01, size=2)           # XY ±1 cm
+                error[2] = np.random.uniform(-0.01, 0.01)                     # yaw ±0.57°
+                error[3:5] = np.random.uniform(-np.deg2rad(1), np.deg2rad(1), size=2)
+                error[5:7] = np.random.uniform(-0.02, 0.02, size=2)           # 速度 ±2 cm/s
+                error[7:10] = np.random.uniform(-np.deg2rad(2), np.deg2rad(2), size=3)
+                initial_state = target_state + error
+
+            else:
+                # 50%：原有的大范围跟踪任务
+                initial_state = self.get_random_initial_state()
+
             system_observation = helper.get_system_observation(
-                initial_mode, initial_time, self.get_random_initial_state(), np.zeros(self.config.INPUT_DIM)
+                initial_mode, initial_time, initial_state, np.zeros(self.config.INPUT_DIM)
             )
             initial_observations[i] = system_observation
-            mode_schedules[i] = helper.get_mode_schedule(*self.get_default_event_times_and_mode_sequence(duration))
+            mode_schedules[i] = helper.get_mode_schedule(
+                *self.get_default_event_times_and_mode_sequence(duration)
+            )
             target_trajectories[i] = helper.get_target_trajectories(
                 np.array([duration], dtype=np.float64),
-                self.get_random_target_state().reshape((1, self.config.TARGET_STATE_DIM)),
+                target_state.reshape((1, self.config.TARGET_STATE_DIM)),
                 np.zeros((1, self.config.TARGET_INPUT_DIM)),
             )
         return initial_observations, mode_schedules, target_trajectories

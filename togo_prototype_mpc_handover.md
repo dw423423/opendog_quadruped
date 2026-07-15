@@ -1,291 +1,702 @@
-# ToGo Prototype 感知 MPC 项目交接书
+# Ballbot MPC-Net 零点控制偏置修复任务书
 
-交接日期：2026-07-13
+## 1. 任务背景
 
-## 1. 本窗口目标与完成情况
-
-本窗口围绕 ToGo Prototype 的感知 MPC 完成了以下工作：
-
-1. 明确算法配置层级：`model_settings.algorithm` 仅支持 `DDP` / `SQP`；当选择 `DDP` 时，`ddp.algorithm` 可选择 `SLQ` / `ILQR`。
-2. 针对下楼梯时同侧前后轮、轮子与小腿连接处过近的问题，实现了独立于地形 SDF 的机器人自碰撞代价。
-3. 修复了新增模型设置字段后启动节点出现的 `std::bad_alloc` / `exit code -6`。
-4. 对随机箱体（1.4）与随机粗糙地面（1.5）的轮子穿地现象进行了数据化分析。
-
-自碰撞功能已能编译、启动和运行；粗糙地面穿模的根因已定位，但尚未实施针对 1.5 的地形/接触模型修复。
-
-## 2. 当前配置快照
-
-当前 ToGo 配置文件：
-
-- `src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/config/togo_prototype/task.info`
-- `src/ocs2_ros2/advance examples/ocs2_perceptive_anymal/ocs2_anymal_loopshaping_mpc/config/togo_prototype/frame_declaration.info`
-
-当前重要值如下：
-
-```info
-model_settings.algorithm                 SQP
-minimumSameSideFootSeparation            0.0
-muSelfCollision                          0.5
-deltaSelfCollision                       0.005
-selfCollisionActivationDistance          0.08
-initialRobotState position x             0.00
-```
-
-`minimumSameSideFootSeparation = 0.0` 表示禁用“同侧前足世界 x 必须在后足前方”的简化约束。它不能表示轮子与小腿的真实距离，当前由下述自碰撞代价替代。
-
-注意：导出目录 `date/20260713_110814` 的 1.5 数据生成时，机身初始 x 为 `0.50 m`（可由导出的机身位姿确认）；它不是当前 `task.info` 中 `x=0.00` 的验证结果。
-
-## 3. 新增自碰撞架构
-
-### 3.1 设计原则
-
-原有 `collisions` 配置会进入地形 SDF 碰撞代价。若把轮子放入其中，轮子在支撑期也会被地形排斥，导致机器人走路歪扭。因此新增独立的：
-
-```info
-selfCollisions {
-  collisionSpheres { ... }
-  collisionOffsets { ... }
-  pairs { ... }
-}
-```
-
-该部分只用于机器人自身几何之间的避碰，不参与地形 SDF；轮子仍可正常接触地面。
-
-### 3.2 当前几何配置
-
-`frame_declaration.info` 中配置了 8 个自碰撞球体：
-
-| 类别 | 连杆 | 半径 |
-|---|---|---:|
-| 小腿/膝连接区域 | `Lfl3_knee`、`Lfr3_knee`、`Lrl3_knee`、`Lrr3_knee` | 0.22 m |
-| 轮子 | `Lfl4_wheel`、`Lfr4_wheel`、`Lrl4_wheel`、`Lrr4_wheel` | 0.095 m |
-
-轮子球体覆盖半径约 0.09 m、宽度约 0.046 m 的轮胎；小腿球体是对完整小腿网格的保守包络。
-
-当前有 6 个同侧碰撞 pair，最小期望表面间隙均为 0.05 m：
+当前 Ballbot MPC-Net 策略输入定义为：
 
 ```text
-左侧：Lfl4_wheel - Lrl3_knee
-左侧：Lrl4_wheel - Lfl3_knee
-左侧：Lfl4_wheel - Lrl4_wheel
-右侧：Lfr4_wheel - Lrr3_knee
-右侧：Lrr4_wheel - Lfr3_knee
-右侧：Lfr4_wheel - Lrr4_wheel
+observation = x - x_ref(t)
 ```
 
-前两类 pair 同时覆盖“前轮靠近后小腿”和“后轮靠近前小腿”两种方向，避免只保护其中一种折叠姿态。
+其中位置误差和线速度误差进一步转换到机体坐标系。
 
-### 3.3 代码数据流
-
-1. `FrameDeclaration` 增加 `selfCollisions` 与 `selfCollisionPairs` 声明。
-2. `QuadrupedPinocchioMapping` 将连杆名映射为 Pinocchio body frame，并解析 pair 的球体索引。
-3. `QuadrupedKinematics` 提供自碰撞球体世界坐标和 pair。
-4. `SwitchedModelPrecomputation` 同时导出普通地形碰撞球和自碰撞球的 CppAD 线性化及其状态导数。
-5. `SelfCollisionAvoidanceCost` 对每个 pair 使用阈值松弛障碍函数：
+因此：
 
 ```text
-h = ||p1 - p2|| - r1 - r2 - minimumDistance
+observation = 0
 ```
 
-当 `h < selfCollisionActivationDistance` 时才施加代价。
+表示机器人当前状态完全等于参考状态，即：
 
-6. `QuadrupedPointfootInterface` 将该代价以 `SelfCollisionAvoidanceCost` 名称加入 `stateCostPtr`。
+* 位置达到目标；
+* yaw 达到目标；
+* pitch、roll 达到期望姿态；
+* 线速度达到参考速度；
+* 角速度达到参考值。
 
-新增/主要修改文件：
+训练过程中虽然会随机生成 XY 和 yaw 目标，但任意目标在成功跟踪时都会映射到同一个策略输入：
 
 ```text
-ocs2_anymal_models/include/ocs2_anymal_models/FrameDeclaration.h
-ocs2_anymal_models/src/FrameDeclaration.cpp
-ocs2_anymal_models/include/ocs2_anymal_models/QuadrupedPinocchioMapping.h
-ocs2_anymal_models/src/QuadrupedPinocchioMapping.cpp
-ocs2_anymal_models/include/ocs2_anymal_models/QuadrupedKinematics.h
-ocs2_anymal_models/src/QuadrupedKinematics.cpp
-
-ocs2_switched_model_interface/include/.../core/KinematicsModelBase.h
-ocs2_switched_model_interface/src/core/KinematicsModelBase.cpp
-ocs2_switched_model_interface/include/.../core/SwitchedModel.h
-ocs2_switched_model_interface/include/.../core/SwitchedModelPrecomputation.h
-ocs2_switched_model_interface/src/core/SwitchedModelPrecomputation.cpp
-ocs2_switched_model_interface/include/.../core/ModelSettings.h
-ocs2_switched_model_interface/src/core/ModelSettings.cpp
-ocs2_switched_model_interface/include/.../cost/SelfCollisionAvoidanceCost.h
-ocs2_switched_model_interface/src/cost/SelfCollisionAvoidanceCost.cpp
-ocs2_switched_model_interface/test/cost/testSelfCollisionAvoidanceCost.cpp
-
-ocs2_quadruped_interface/src/QuadrupedPointfootInterface.cpp
+observation = 0
 ```
 
-`...` 代表相应包的 include 根目录。
-
-## 4. 已验证事项
-
-### 4.1 单元测试
-
-已执行：
-
-```bash
-build/ocs2_switched_model_interface/test_ocs2_switched_model_interface_cost \
-  --gtest_filter='SelfCollisionAvoidanceCostTest.*'
-```
-
-结果：两个测试均通过，覆盖代价激活范围与梯度推动球体分离的方向。
-
-### 4.2 编译与安装
-
-已构建并安装以下包/目标：
+当前训练模型在该输入下输出：
 
 ```text
-ocs2_switched_model_interface
-ocs2_anymal_models
-ocs2_quadruped_interface
-ocs2_quadruped_loopshaping_interface
-ocs2_anymal_mpc
-ocs2_anymal_loopshaping_mpc_perceptive_demo
+πNN(0) = [0.5248, -0.6926, 0.1580]
 ```
 
-`task.info` 和 `frame_declaration.info` 在 install 空间中为软链接，单纯修改配置后无需重新编译 C++；但修改接口头文件或模型设置结构后必须重编译依赖包。
-
-### 4.3 运行验证
-
-已用 ToGo URDF、楼梯下行参数直接运行感知节点：
-
-```bash
-install/ocs2_anymal_loopshaping_mpc/lib/ocs2_anymal_loopshaping_mpc/\
-ocs2_anymal_loopshaping_mpc_perceptive_demo
-```
-
-短距离和 3 m 下楼梯验证均输出：
+严格稳态邻域统计为：
 
 ```text
-Completed: 100
+bias ≈ [0.00759, 0.00761, 0.00124]
+MAE  ≈ [0.00759, 0.00761, 0.00193]
 ```
 
-自碰撞加强后的 3 m 下楼梯临时验证数据导出在：
+其中 bias 接近 MAE，说明误差主要是稳定的系统偏置，而不是随机拟合噪声。
+
+PyTorch 与 ONNX 的对比结果一致，因此问题不是 ONNX 导出造成的，而是训练得到的策略本身存在零点控制偏置。
+
+---
+
+# 2. 任务目标
+
+修复 Ballbot MPC-Net 策略在目标状态附近的控制偏置，使网络满足：
 
 ```text
-/tmp/20260713_105819
+πNN(0) ≈ uMPC(0)
 ```
 
-对该轨迹，左前轮与左后小腿的全轨迹网格最小间隙为 202.8 mm；新增反向 pair 在其最接近的球体时刻也保有较大网格余量。
-
-## 5. 已修复的启动崩溃
-
-现象：
+若验证教师 MPC 在精确平衡状态下满足：
 
 ```text
-process has died, exit code -6
-terminate called after throwing std::bad_alloc
+uMPC(0) ≈ 0
 ```
 
-原因：新增 `ModelSettings` 字段后，只编译了部分下游目标；静态库 `ocs2_anymal_mpc` 仍按旧的 `QuadrupedInterface::Settings` 内存布局传递数据。`defaultGait_` 随后被错误解释，构造 `GaitSchedule` 时触发异常。
-
-修复方法：重新编译并安装 `ocs2_anymal_mpc`，然后重新链接/安装最终的感知 MPC 可执行文件。
-
-若再次修改以下结构体的字段或布局，必须做同样的依赖重编译：
+则训练后的策略应满足：
 
 ```text
-switched_model::ModelSettings
-switched_model::QuadrupedInterface::Settings
+πNN(0) ≈ 0
 ```
 
-建议命令：
+同时要求：
 
-```bash
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
+1. 降低目标附近的稳态位置和姿态误差；
+2. 保持原有动态运动控制能力；
+3. 不得通过直接修改已训练模型最后一层 bias 后立即部署的方式修复；
+4. PyTorch 与 ONNX 模型在零点及零点邻域内保持一致；
+5. 修复后不得出现明显振荡、发散或响应速度严重下降。
 
-cmake --build build/ocs2_switched_model_interface -- -j2
-cmake --install build/ocs2_switched_model_interface
-cmake --build build/ocs2_anymal_models -- -j2
-cmake --install build/ocs2_anymal_models
-cmake --build build/ocs2_quadruped_interface -- -j2
-cmake --install build/ocs2_quadruped_interface
-cmake --build build/ocs2_anymal_mpc --target ocs2_anymal_mpc -- -j2
-cmake --install build/ocs2_anymal_mpc
-cmake --build build/ocs2_anymal_loopshaping_mpc \
-  --target ocs2_anymal_loopshaping_mpc_perceptive_demo -- -j2
-cmake --install build/ocs2_anymal_loopshaping_mpc
-```
+---
 
-## 6. 1.4 / 1.5 地形穿模分析
+# 3. 当前代码定义
 
-分析使用的数据：
+## 3.1 默认参考状态
+
+`ballbot.yaml` 中默认目标状态为：
 
 ```text
-date/20260713_110709  # 1.4 随机箱体
-date/20260713_110814  # 1.5 随机粗糙地面
+[x, y, yaw, pitch, roll,
+ vx, vy, yaw_rate, pitch_rate, roll_rate]
+=
+[0, 0, 0, 0, 0,
+ 0, 0, 0, 0, 0]
 ```
 
-### 6.1 数据结论
+表示默认目标为：
 
-| 场景 | 四个轮接触点相对原始高度图的最小间隙 |
-|---|---:|
-| 1.4 随机箱体 | +0.3 mm |
-| 1.5 随机粗糙地面 | -49.4 mm |
+* 世界坐标原点；
+* 水平姿态；
+* 静止状态。
 
-1.5 中，右后轮在 `t=0.97 s` 处的接触点约为：
+## 3.2 策略输入
+
+`BallbotMpcnetDefinition.cpp` 中策略输入为状态与当前参考状态之差：
+
+```cpp
+observation = state - referenceState;
+```
+
+之后将：
 
 ```text
-(x, y, z) = (0.195, -0.278, 0.001) m
-原始地形高度约为 0.050 m
+位置误差 x、y
+线速度误差 vx、vy
 ```
 
-即启动阶段已经进入地面约 49 mm。后续还出现过前右轮约 -21.8 mm、后左轮约 -11.8 mm 的接触点负间隙。因此这不是单纯的 RViz 显示问题。
+转换到机体坐标系。
 
-### 6.2 根因
-
-1. **初始支撑区不平。** 当时导出轨迹的机身 x 为 0.50 m，后轮接触点已经进入粗糙场；随机箱体的前 2 m 是完整平地，因此不发生该问题。
-2. **规划地形与原始高度图有误差。** 感知流水线生成的平面化/滤波高度图，在 1.5 中相对原图的绝对误差 95% 分位为约 20 mm，最大约 40 mm。1.4 的绝大多数区域误差为 0。感知节点由 `SegmentedPlanesTerrainModel` 构建 SDF，而不是直接使用原始高度图。
-3. **轮子没有作为地形 SDF 碰撞体。** 普通 `collisions` 只有小腿球体；轮子被故意只放入 `selfCollisions`，否则支撑期会被地面排斥、步态失稳。
-4. **支撑期的足端 SDF 碰撞关闭。** `SwitchedModelPrecomputation` 中，足端球仅在摆动期激活；支撑期由局部平面接触约束处理。`contactRadius=0.09 m` 只能将接触平面沿法向偏移，不能让完整轮胎与连续粗糙高度场做精确体积碰撞。
-5. **SDF 避碰是软代价。** 即使对摆动腿/小腿，`CollisionAvoidanceCost` 也不是硬几何约束，因此存在与运动跟踪、动力学代价折中的残余穿入。
-
-### 6.3 当前配置的额外注意事项
-
-当前 `initialRobotState.x = 0.00 m`，而 1.5 地图的 world-x 范围为约 `[0, 8] m`。后轮相对机身向后延伸，初始接触点可能落到地图范围外。因此不要仅依靠把机身 x 改为 0 来修复 1.5；应先重新设计地图的平坦起步区和世界坐标对齐关系。
-
-## 7. 建议的后续工作（未实施）
-
-按优先级：
-
-1. **修正 1.5 地图起步区。** 生成粗糙地面时保留至少 1.0 m 长、横向至少覆盖 `y=[-0.5, 0.5] m` 的完全平坦前后平台；随后将机器人初始 x 放在该平坦区中心，并确保四个轮接触点均在地图内。
-2. **构建保守地形。** 用原始高度图的上包络（例如高度 max-filter 或 3–5 cm 膨胀）生成 SDF/接触高度，避免平面化误差将小峰值抹掉。
-3. **改进摆动轮地形避碰。** 对摆动轮使用包含轮胎半径的 SDF 间隙；不要把同一个轮球无条件加入普通 `collisions`，因为它会在支撑期与地面接触冲突。应新增“仅摆动期启用的轮地形碰撞体”或实现真正的轮-地形接触几何。
-4. **重新采集并量化。** 修复后重新导出 1.5 数据，检查四个 `*_wheel_contact` 相对原始地形高度的最小间隙必须非负，并同时检查轮胎网格与地形的最小距离。
-
-## 8. 常用启动命令
-
-```bash
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-
-# 平地
-ros2 launch ocs2_anymal_loopshaping_mpc \
-  togo_prototype_flat_mpc_demo.launch.py forward_velocity:=0.5
-
-# 随机箱体（1.4）
-ros2 launch ocs2_anymal_loopshaping_mpc \
-  togo_prototype_random_boxes_mpc_demo.launch.py forward_velocity:=0.5
-
-# 随机粗糙地面（1.5；当前仍有待修复的穿模问题）
-ros2 launch ocs2_anymal_loopshaping_mpc \
-  togo_prototype_rough_terrain_mpc_demo.launch.py forward_velocity:=0.5
-
-# 下楼梯
-ros2 launch ocs2_anymal_loopshaping_mpc \
-  togo_prototype_stairs_down_mpc_demo.launch.py forward_velocity:=0.5
-```
-
-## 9. 工作区状态与提交注意事项
-
-当前工作区存在多项未提交改动，除自碰撞实现外还包括地形 PNG、感知参数 YAML、多个 launch 文件、文档及已有文件的修改/删除。提交前应人工拆分提交；不要使用 `git reset --hard`、`git checkout -- .` 等会覆盖其他工作内容的命令。
-
-与本窗口直接相关且应一起提交的内容至少包括：
+因此，任何随机目标在完全跟踪成功时均满足：
 
 ```text
-自碰撞模型、预计算与代价源码
-SelfCollisionAvoidanceCost 单元测试及 CMake 注册
-togo_prototype/task.info 自碰撞参数
-togo_prototype/frame_declaration.info 的 selfCollisions 配置
-本交接书
+observation = 0
+```
+
+## 3.3 当前策略形式
+
+当前策略为带 bias 的线性层：
+
+```text
+uNN = W · observation + b
+```
+
+因此：
+
+```text
+πNN(0) = b
+```
+
+当前模型的非零 `πNN(0)` 会使机器人离开真实目标状态，直到状态误差产生的反馈控制抵消该偏置，从而形成非零稳态误差。
+
+---
+
+# 4. 第一阶段：确认教师平衡输入
+
+## 4.1 精确构造平衡状态
+
+不得再使用数据集中“距离零点最近的样本”代替真正平衡点。
+
+必须直接构造：
+
+```text
+state = referenceState
+observation = 0
+```
+
+至少测试以下参考：
+
+```text
+默认参考：
+x_ref = 0
+y_ref = 0
+yaw_ref = 0
+
+随机位置参考：
+x_ref、y_ref 取训练范围内多个值
+
+随机 yaw 参考：
+yaw_ref 取训练范围内多个值
+```
+
+所有状态均要求：
+
+```text
+pitch = 0
+roll = 0
+vx = vy = 0
+yaw_rate = pitch_rate = roll_rate = 0
+```
+
+## 4.2 获取教师控制
+
+对每个平衡状态调用教师 MPC，记录：
+
+```text
+uMPC,eq
+```
+
+验证不同 XY 和 yaw 目标下的教师平衡输入是否一致。
+
+## 4.3 判断标准
+
+若全部平衡状态满足：
+
+```text
+||uMPC,eq||∞ < 1e-4～1e-3
+```
+
+则后续统一采用：
+
+```text
+uMPC,eq = 0
+```
+
+作为网络零点目标。
+
+若教师平衡输入不为零，则应使用教师实际输出：
+
+```text
+πNN(0) ≈ uMPC,eq
+```
+
+不得强制网络输出零。
+
+---
+
+# 5. 第二阶段：训练数据修复
+
+## 5.1 增加精确零点样本
+
+训练数据中必须显式加入：
+
+```text
+observation = 0
+target action = uMPC,eq
+```
+
+不能依赖随机采样自然产生精确零点。
+
+建议每个训练 batch 中至少包含：
+
+```text
+5%～10% 精确零点样本
+```
+
+精确零点样本可以重复使用，但随机参考状态应覆盖：
+
+```text
+不同 x_ref
+不同 y_ref
+不同 yaw_ref
+```
+
+验证这些参考经过 observation 转换后均严格为零。
+
+## 5.2 增加零点邻域样本
+
+新增独立的 equilibrium-neighborhood sampler。
+
+建议采样范围：
+
+```text
+位置误差：
+x、y ∈ [-0.01, 0.01] m
+
+yaw 误差：
+yaw ∈ [-0.01, 0.01] rad
+
+姿态误差：
+pitch、roll ∈ [-0.0035, 0.0035] rad
+约等于 ±0.2°
+
+线速度误差：
+vx、vy ∈ [-0.02, 0.02] m/s
+
+角速度误差：
+yaw_rate、pitch_rate、roll_rate
+∈ [-0.02, 0.02] rad/s
+```
+
+所有样本必须调用教师 MPC 生成对应控制标签。
+
+## 5.3 对称采样
+
+对每个观测维度使用对称扰动：
+
+```text
++εei
+-εei
+```
+
+建议至少使用：
+
+```text
+ε = 1e-4
+ε = 1e-3
+ε = 1e-2
+```
+
+用于约束策略在零点两侧的响应方向和局部增益。
+
+## 5.4 回灌当前模型失败状态
+
+使用当前策略闭环运行，采集：
+
+* 实际稳态偏移点；
+* 零点到错误稳态点之间的状态；
+* 稳态点附近的小扰动状态；
+* 网络输出偏差较大的状态。
+
+对这些状态重新调用教师 MPC，加入训练集。
+
+推荐 batch 比例：
+
+```text
+50% 常规 rollout 数据
+25% 零点及零点邻域数据
+25% 当前策略闭环失败状态
+```
+
+比例可根据验证结果调整，但零点样本不得再次被大规模动态数据淹没。
+
+---
+
+# 6. 第三阶段：损失函数修复
+
+## 6.1 保留原 MPC-Net 损失
+
+继续保留当前 Hamiltonian loss：
+
+```text
+LH
+```
+
+不得只改为普通动作监督学习。
+
+## 6.2 增加动作监督损失
+
+新增：
+
+```text
+Laction = ||πNN(o) - uMPC(o)||²
+```
+
+主要用于限制网络动作的系统性偏差。
+
+建议初始权重：
+
+```text
+λaction = 0.05～0.2
+```
+
+## 6.3 增加平衡点锚定损失
+
+新增：
+
+```text
+Leq = ||πNN(0) - uMPC,eq||²
+```
+
+总损失：
+
+```text
+Ltotal =
+    LH
+  + λaction · Laction
+  + λeq · Leq
+```
+
+建议初始权重：
+
+```text
+λeq = 1～10
+```
+
+具体权重通过验证集调整。
+
+## 6.4 单独记录损失项
+
+训练日志必须分别输出：
+
+```text
+Hamiltonian loss
+Action MSE
+Equilibrium loss
+πNN(0)
+uMPC,eq
+||πNN(0) - uMPC,eq||
+zero-neighborhood bias
+zero-neighborhood MAE
+```
+
+不得只输出总训练 loss。
+
+---
+
+# 7. 第四阶段：网络结构选择
+
+## 7.1 第一版方案
+
+第一版优先采用：
+
+```text
+精确零点数据
++ 零点邻域数据
++ 动作监督损失
++ 平衡点锚定损失
+```
+
+保留当前网络结构，重新训练或低学习率微调。
+
+## 7.2 可选中心化策略结构
+
+若第一版仍无法稳定消除零点偏置，可改为：
+
+```text
+π(o) = uMPC,eq + f(o) - f(0)
+```
+
+若教师平衡输入为零：
+
+```text
+π(o) = f(o) - f(0)
+```
+
+该结构应严格保证：
+
+```text
+π(0) = uMPC,eq
+```
+
+不能仅删除最后一层 bias，因为多层网络中的其他 bias 和激活函数仍可能使：
+
+```text
+f(0) ≠ 0
+```
+
+## 7.3 禁止方案
+
+不得直接对现有已训练模型执行：
+
+```python
+linear.bias.zero_()
+```
+
+然后立即导出部署。
+
+原因是现有权重已经围绕当前 bias 形成完整控制律，单独修改 bias 会整体平移策略输出，并可能破坏动态稳定性。
+
+---
+
+# 8. 微调方案
+
+若不从头训练，可使用现有模型进行定向微调：
+
+1. 加载当前训练模型；
+2. 增加零点及零点邻域数据；
+3. 学习率降低到原训练学习率的 `1/10～1/100`；
+4. 增加 `Leq` 权重；
+5. 第一阶段仅训练输出层或最后两层；
+6. 第二阶段解冻全部网络；
+7. 对常规动态数据与零点数据混合训练；
+8. 每个 epoch 检查 `πNN(0)`。
+
+早停条件不能只依据 validation loss，还应加入：
+
+```text
+||πNN(0) - uMPC,eq||
+```
+
+---
+
+# 9. 测试要求
+
+## 9.1 教师零点测试
+
+验证：
+
+```text
+state = referenceState
+observation = 0
+```
+
+时教师 MPC 的输出。
+
+至少覆盖：
+
+* 默认原点目标；
+* 不同 XY 目标；
+* 不同 yaw 目标。
+
+## 9.2 PyTorch 零点测试
+
+每个训练 checkpoint 必须计算：
+
+```text
+πTorch(0)
+```
+
+并与教师输出比较。
+
+## 9.3 ONNX 零点测试
+
+导出 ONNX 后计算：
+
+```text
+πONNX(0)
+```
+
+要求：
+
+```text
+πONNX(0) ≈ πTorch(0)
+```
+
+## 9.4 零点邻域测试
+
+使用严格条件：
+
+```text
+xy error <= 0.01
+yaw error <= 0.01
+attitude error <= 0.02
+linear speed <= 0.02
+angular speed <= 0.02
+```
+
+统计：
+
+```text
+signed bias
+MAE
+max error
+```
+
+## 9.5 局部增益测试
+
+计算零点处 Jacobian：
+
+```text
+Jπ(0) = ∂π/∂observation
+```
+
+检查：
+
+* 是否存在异常大的增益；
+* 正负扰动响应是否合理；
+* 新旧模型局部增益差异；
+* 修复零点偏置后是否引入高频振荡风险。
+
+## 9.6 闭环测试
+
+至少执行：
+
+```text
+静止原点目标
+非零 XY 静止目标
+非零 yaw 静止目标
+目标位置阶跃
+目标 yaw 阶跃
+小速度跟踪
+```
+
+分别记录：
+
+```text
+位置稳态误差
+yaw 稳态误差
+pitch/roll 稳态误差
+控制输出均值
+控制输出峰值
+收敛时间
+超调量
+是否振荡
+是否发散
+```
+
+---
+
+# 10. 验收指标
+
+## 10.1 零点输出
+
+若教师平衡输入为零：
+
+```text
+||πNN(0)||∞ <= 0.005
+```
+
+建议目标：
+
+```text
+||πNN(0)||∞ <= 0.001
+```
+
+若教师平衡输入非零：
+
+```text
+||πNN(0) - uMPC,eq||∞ <= 0.005
+```
+
+## 10.2 ONNX 一致性
+
+相同输入下：
+
+```text
+max |πONNX(o) - πTorch(o)| <= 1e-5
+```
+
+零点必须单独满足该指标。
+
+## 10.3 稳态邻域偏差
+
+严格稳态集合内，每个动作维度满足：
+
+```text
+|bias| <= 0.002～0.005
+```
+
+并且：
+
+```text
+|bias| < 0.25 × MAE
+```
+
+避免再次出现：
+
+```text
+bias ≈ MAE
+```
+
+的固定方向偏置。
+
+## 10.4 闭环稳态误差
+
+相较当前模型：
+
+* XY 稳态误差明显下降；
+* pitch/roll 偏移明显下降；
+* yaw 稳态误差不恶化；
+* 不引入持续振荡；
+* 动态跟踪性能不得明显下降。
+
+建议至少实现：
+
+```text
+XY 稳态误差下降 70%
+姿态稳态偏移下降 70%
+```
+
+## 10.5 动态性能
+
+与当前模型相比：
+
+```text
+收敛时间增加不超过 20%
+最大超调增加不超过 20%
+动态轨迹动作 MAE 不明显恶化
+无新增发散案例
+```
+
+---
+
+# 11. 风险与处理
+
+| 风险                   | 处理方式                      |
+| -------------------- | ------------------------- |
+| 教师 MPC 在零点并非零输入      | 使用真实 `uMPC,eq`，不得强行设零     |
+| 零点样本被动态样本淹没          | 使用独立 sampler 和固定 batch 比例 |
+| 只修复 bias，局部增益仍异常     | 检查零点 Jacobian 和对称扰动       |
+| 零点性能改善但动态性能下降        | 混合常规 rollout 数据，降低 `λeq`  |
+| 直接修改已训练 bias 导致控制律突变 | 禁止直接清零后部署                 |
+| 微调出现灾难性遗忘            | 降低学习率，保留原动态训练数据           |
+| PyTorch 修复但 ONNX 不一致 | 导出后执行零点和批量一致性测试           |
+| 不同参考对应不同教师平衡输入       | 将参考或平衡输入显式纳入策略定义          |
+
+---
+
+# 12. 交付物
+
+必须提交：
+
+1. 教师精确平衡点测试脚本；
+2. 零点及零点邻域数据生成代码；
+3. 当前策略失败状态回灌代码；
+4. 动作监督损失实现；
+5. 平衡点锚定损失实现；
+6. 修改后的训练配置；
+7. 新训练模型；
+8. 新 ONNX 模型；
+9. PyTorch/ONNX 一致性测试；
+10. 零点输出分析报告；
+11. 零点邻域 bias 和 MAE 报告；
+12. 闭环稳态与动态对比报告；
+13. 模型训练日志和使用的 commit；
+14. 已知限制说明。
+
+---
+
+# 13. 完成定义
+
+满足以下条件才可判定任务完成：
+
+```text
+1. 已直接验证教师 MPC 的精确平衡输入；
+2. 训练数据中包含明确的精确零点和零点邻域样本；
+3. 训练损失中包含平衡点锚定项；
+4. πNN(0) 接近教师平衡输入；
+5. PyTorch 与 ONNX 在零点和邻域内一致；
+6. 闭环稳态误差明显下降；
+7. 动态性能没有明显退化；
+8. 未通过直接清零已训练 bias 的方式绕过重训。
 ```

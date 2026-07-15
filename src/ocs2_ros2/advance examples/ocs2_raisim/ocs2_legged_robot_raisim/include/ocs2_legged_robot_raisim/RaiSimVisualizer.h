@@ -51,6 +51,7 @@ namespace ocs2::legged_robot {
         void updateTerrain(std::chrono::seconds timeout = std::chrono::seconds(5));
 
     private:
+        rclcpp::Node::SharedPtr node_;
         std::unique_ptr<raisim::HeightMap> terrainPtr_;
     };
 } // namespace ocs2::legged_robot

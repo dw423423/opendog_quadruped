@@ -39,7 +39,8 @@ namespace ocs2::legged_robot {
         rclcpp::Node::SharedPtr node, scalar_t maxUpdateFrequency)
         : LeggedRobotVisualizer(std::move(interface), std::move(model_info),
                                 endEffectorKinematics, node,
-                                maxUpdateFrequency) {
+                                maxUpdateFrequency),
+          node_(std::move(node)) {
     }
 
     void RaiSimVisualizer::update(const SystemObservation &observation,

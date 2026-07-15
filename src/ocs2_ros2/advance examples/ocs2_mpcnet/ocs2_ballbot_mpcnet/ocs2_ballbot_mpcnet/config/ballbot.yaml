@@ -21,11 +21,11 @@ ACTION_DIM: 3
 EXPERT_NUM: 1
 # default state
 DEFAULT_STATE:
-  - 0.0  # pose x
-  - 0.0  # pose y
-  - 0.0  # pose yaw
-  - 0.0  # pose pitch
-  - 0.0  # pose roll
+  - 0.0          # pose x
+  - 0.0          # pose y
+  - 0.0          # pose yaw
+  - -0.0153340   # pose pitch: static trim, -0.878576°
+  - 0.0168696    # pose roll: static trim, +0.966555°
   - 0.0  # twist x
   - 0.0  # twist y
   - 0.0  # twist yaw
@@ -36,8 +36,8 @@ DEFAULT_TARGET_STATE:
   - 0.0  # pose x
   - 0.0  # pose y
   - 0.0  # pose yaw
-  - 0.0  # pose pitch
-  - 0.0  # pose roll
+  - -0.0153340  # pose pitch: static trim, -0.878576°
+  - 0.0168696   # pose roll: static trim, +0.966555°
   - 0.0  # twist x
   - 0.0  # twist y
   - 0.0  # twist yaw
@@ -91,13 +91,13 @@ ACTION_SCALING:
 # RaiSim or TimeTriggered rollout for data generation and policy evaluation
 RAISIM: False
 # settings for data generation
-DATA_GENERATION_TIME_STEP: 0.1
-DATA_GENERATION_DURATION: 3.0
-DATA_GENERATION_DATA_DECIMATION: 1
-DATA_GENERATION_THREADS: 2
-DATA_GENERATION_TASKS: 10
-DATA_GENERATION_SAMPLES: 2
-DATA_GENERATION_SAMPLING_VARIANCE:
+DATA_GENERATION_TIME_STEP: 0.05   #表示每隔0.1秒执行一次数据采样/rollout控制步骤。
+DATA_GENERATION_DURATION: 8.0    #表示每个训练任务 rollout n 秒。
+DATA_GENERATION_DATA_DECIMATION: 1    #含义是每个采样时刻都保存。例如设为2，则每两个采样点保存一次。
+DATA_GENERATION_THREADS: 2             #它只影响数据生成速度，不直接提高模型精度。
+DATA_GENERATION_TASKS: 10         #表示每一轮并行生成10个随机任务。
+DATA_GENERATION_SAMPLES: 2        #表示每个名义 MPC 状态附近，再额外采样2个扰动状态。
+DATA_GENERATION_SAMPLING_VARIANCE:  #分别表示状态附近的采样标准差
   - 0.01           # pose x
   - 0.01           # pose y
   - 0.01745329251  # pose yaw: 1.0 / 180.0 * pi
@@ -109,10 +109,10 @@ DATA_GENERATION_SAMPLING_VARIANCE:
   - 0.08726646259  # twist pitch: 5.0 / 180.0 * pi
   - 0.08726646259  # twist roll: 5.0 / 180.0 * pi
 # settings for computing metrics
-POLICY_EVALUATION_TIME_STEP: 0.1
-POLICY_EVALUATION_DURATION: 3.0
+POLICY_EVALUATION_TIME_STEP: 0.05
+POLICY_EVALUATION_DURATION: 8.0   #表示只使用神经网络运行3秒进行评估。训练代码默认评估时 alpha=0，也就是 MPC 不参与控制。
 POLICY_EVALUATION_THREADS: 1
-POLICY_EVALUATION_TASKS: 5
+POLICY_EVALUATION_TASKS: 5        #任务数太少时，评估指标随机性较大。可能刚好抽到简单任务，就误认为模型很好。
 #
 # training
 #
@@ -126,5 +126,6 @@ POLICY_EVALUATION_TASKS: 5
 BATCH_SIZE: 128   #每次梯度更新时，从 replay memory 里随机取 n 条 MPC 数据来训练。
 LEARNING_RATE: 1.e-3  #学习率
 GRADIENT_CLIPPING: True   #开启梯度裁剪。意思是如果一次反向传播算出来的梯度太大，就把它压小，避免模型参数突然跳太远。
-GRADIENT_CLIPPING_VALUE: 1.0    #梯度裁剪阈值。也就是把所有参数梯度的总范数限制在 n 以内。
-LEARNING_ITERATIONS: 100000      #训练迭代次数。训练循环会执行 n 次 optimizer step。
+GRADIENT_CLIPPING_VALUE: 1.0    #梯度裁剪阈值。作用是限制所有网络参数的总梯度范数，防止 Hamiltonian Loss 产生非常大的更新。
+LEARNING_ITERATIONS: 50000      #训练迭代次数。训练循环会执行 n 次 optimizer step。
+#alpha = 1.0 - iteration / LEARNING_ITERATIONS
