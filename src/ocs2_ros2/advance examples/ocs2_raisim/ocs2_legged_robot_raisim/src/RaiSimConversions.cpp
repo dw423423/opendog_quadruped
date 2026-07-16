@@ -83,6 +83,7 @@ namespace ocs2::legged_robot {
 
     vector_t LeggedRobotRaisimConversions::raisimJointOrderToOcs2JointOrder(
         const Eigen::VectorXd &raisimJoint) {
+        // RaiSim: [LF, RF, LH, RH] -> OCS2/Pinocchio: [LF, LH, RF, RH].
         vector_t ocs2Joint(12);
         ocs2Joint << raisimJoint.head<3>(), raisimJoint.segment<3>(6),
                 raisimJoint.segment<3>(3), raisimJoint.tail<3>();
@@ -91,6 +92,7 @@ namespace ocs2::legged_robot {
 
     Eigen::VectorXd LeggedRobotRaisimConversions::ocs2JointOrderToRaisimJointOrder(
         const vector_t &ocs2Joint) {
+        // OCS2/Pinocchio: [LF, LH, RF, RH] -> RaiSim: [LF, RF, LH, RH].
         Eigen::VectorXd raisimJoint(12);
         raisimJoint << ocs2Joint.head<3>(), ocs2Joint.segment<3>(6),
                 ocs2Joint.segment<3>(3), ocs2Joint.tail<3>();

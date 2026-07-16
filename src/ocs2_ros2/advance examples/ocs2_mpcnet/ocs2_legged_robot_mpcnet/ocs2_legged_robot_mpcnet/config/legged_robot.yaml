@@ -19,6 +19,8 @@ OBSERVATION_DIM: 36
 ACTION_DIM: 24
 # expert number
 EXPERT_NUM: 3
+# OCS2/Pinocchio joint state and joint velocity order: LF, LH, RF, RH.
+# Contact force, contact mode, and swing phase order: LF, RF, LH, RH.
 # default state
 DEFAULT_STATE:
   - 0.0    # normalized linear momentum x
@@ -36,12 +38,12 @@ DEFAULT_STATE:
   - -0.25  # joint position LF HAA
   - 0.6    # joint position LF HFE
   - -0.85  # joint position LF KFE
-  - 0.25   # joint position RF HAA
-  - 0.6    # joint position RF HFE
-  - -0.85  # joint position RF KFE
   - -0.25  # joint position LH HAA
   - -0.6   # joint position LH HFE
   - 0.85   # joint position LH KFE
+  - 0.25   # joint position RF HAA
+  - 0.6    # joint position RF HFE
+  - -0.85  # joint position RF KFE
   - 0.25   # joint position RH HAA
   - -0.6   # joint position RH HFE
   - 0.85   # joint position RH KFE
@@ -62,12 +64,12 @@ DEFAULT_TARGET_STATE:
   - -0.25  # joint position LF HAA
   - 0.6    # joint position LF HFE
   - -0.85  # joint position LF KFE
-  - 0.25   # joint position RF HAA
-  - 0.6    # joint position RF HFE
-  - -0.85  # joint position RF KFE
   - -0.25  # joint position LH HAA
   - -0.6   # joint position LH HFE
   - 0.85   # joint position LH KFE
+  - 0.25   # joint position RF HAA
+  - 0.6    # joint position RF HFE
+  - -0.85  # joint position RF KFE
   - 0.25   # joint position RH HAA
   - -0.6   # joint position RH HFE
   - 0.85   # joint position RH KFE
@@ -102,12 +104,12 @@ R:
   - 5.0    # joint velocity LF HAA
   - 5.0    # joint velocity LF HFE
   - 5.0    # joint velocity LF KFE
-  - 5.0    # joint velocity RF HAA
-  - 5.0    # joint velocity RF HFE
-  - 5.0    # joint velocity RF KFE
   - 5.0    # joint velocity LH HAA
   - 5.0    # joint velocity LH HFE
   - 5.0    # joint velocity LH KFE
+  - 5.0    # joint velocity RF HAA
+  - 5.0    # joint velocity RF HFE
+  - 5.0    # joint velocity RF KFE
   - 5.0    # joint velocity RH HAA
   - 5.0    # joint velocity RH HFE
   - 5.0    # joint velocity RH KFE
@@ -148,12 +150,12 @@ OBSERVATION_SCALING:
   - 1.0  # joint position LF HAA
   - 1.0  # joint position LF HFE
   - 1.0  # joint position LF KFE
-  - 1.0  # joint position RF HAA
-  - 1.0  # joint position RF HFE
-  - 1.0  # joint position RF KFE
   - 1.0  # joint position LH HAA
   - 1.0  # joint position LH HFE
   - 1.0  # joint position LH KFE
+  - 1.0  # joint position RF HAA
+  - 1.0  # joint position RF HFE
+  - 1.0  # joint position RF KFE
   - 1.0  # joint position RH HAA
   - 1.0  # joint position RH HFE
   - 1.0  # joint position RH KFE
@@ -174,12 +176,12 @@ ACTION_SCALING:
   - 10.0   # joint velocity LF HAA
   - 10.0   # joint velocity LF HFE
   - 10.0   # joint velocity LF KFE
-  - 10.0   # joint velocity RF HAA
-  - 10.0   # joint velocity RF HFE
-  - 10.0   # joint velocity RF KFE
   - 10.0   # joint velocity LH HAA
   - 10.0   # joint velocity LH HFE
   - 10.0   # joint velocity LH KFE
+  - 10.0   # joint velocity RF HAA
+  - 10.0   # joint velocity RF HFE
+  - 10.0   # joint velocity RF KFE
   - 10.0   # joint velocity RH HAA
   - 10.0   # joint velocity RH HFE
   - 10.0   # joint velocity RH KFE
@@ -216,12 +218,12 @@ DATA_GENERATION_SAMPLING_VARIANCE:
   - 0.00872664625  # joint position LF HAA: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position LF HFE: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position LF KFE: 0.5 / 180.0 * pi
-  - 0.00872664625  # joint position RF HAA: 0.5 / 180.0 * pi
-  - 0.00872664625  # joint position RF HFE: 0.5 / 180.0 * pi
-  - 0.00872664625  # joint position RF KFE: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position LH HAA: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position LH HFE: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position LH KFE: 0.5 / 180.0 * pi
+  - 0.00872664625  # joint position RF HAA: 0.5 / 180.0 * pi
+  - 0.00872664625  # joint position RF HFE: 0.5 / 180.0 * pi
+  - 0.00872664625  # joint position RF KFE: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position RH HAA: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position RH HFE: 0.5 / 180.0 * pi
   - 0.00872664625  # joint position RH KFE: 0.5 / 180.0 * pi
@@ -234,10 +236,13 @@ POLICY_EVALUATION_TASKS: 3       #任务数太少时，评估指标随机性较�
 #
 # training
 #
+# log policy-vs-MPC input errors on one replay-memory batch every N iterations
+MPC_FIT_LOG_INTERVAL: 100
+MPC_FIT_INPUT_GROUPS:
+  contact_force: [0, 12]
+  joint_velocity: [12, 24]
 BATCH_SIZE: 128   #每次梯度更新时，从 replay memory 里随机取 n 条 MPC 数据来训练。
 LEARNING_RATE: 1.e-3  #学习率
 LEARNING_ITERATIONS: 100000     #训练迭代次数。训练循环会执行 n 次 optimizer step。
 GRADIENT_CLIPPING: True  #开启梯度裁剪。意思是如果一次反向传播算出来的梯度太大，就把它压小，避免模型参数突然跳太远。
 GRADIENT_CLIPPING_VALUE: 1    #梯度裁剪阈值。作用是限制所有网络参数的总梯度范数，防止 Hamiltonian Loss 产生非常大的更新。
-
-

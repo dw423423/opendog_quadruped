@@ -122,6 +122,58 @@ class Mpcnet(metaclass=ABCMeta):
         )
         torch.save(obj=policy, f=save_path + ".pt")
 
+    def _log_mpc_fit_metrics(
+            self,
+            predicted_input: torch.Tensor,
+            mpc_input: torch.Tensor,
+            empirical_experts_loss: torch.Tensor,
+            nominal_hamiltonian: torch.Tensor,
+            iteration: int,
+    ) -> None:
+        """Log how closely the policy input matches the MPC input on a training batch."""
+        log_interval = int(getattr(self.config, "MPC_FIT_LOG_INTERVAL", 0))
+        if log_interval <= 0 or iteration % log_interval != 0:
+            return
+
+        with torch.no_grad():
+            input_error = predicted_input.detach() - mpc_input
+            input_rmse = torch.sqrt(torch.mean(input_error.square()))
+            input_mae = torch.mean(torch.abs(input_error))
+            hamiltonian_gap = empirical_experts_loss.detach() - torch.mean(nominal_hamiltonian)
+
+            self.writer.add_scalar("fit/input_rmse", input_rmse.item(), iteration)
+            self.writer.add_scalar("fit/input_mae", input_mae.item(), iteration)
+            self.writer.add_scalar("fit/hamiltonian_gap", hamiltonian_gap.item(), iteration)
+
+            action_scaling = getattr(self.config, "ACTION_SCALING", None)
+            if action_scaling is not None and len(action_scaling) == input_error.shape[1]:
+                input_scaling = torch.as_tensor(
+                    action_scaling,
+                    device=input_error.device,
+                    dtype=input_error.dtype,
+                )
+                if torch.any(input_scaling == 0.0):
+                    raise ValueError("ACTION_SCALING must be nonzero to log normalized MPC fit error.")
+                normalized_input_rmse = torch.sqrt(torch.mean((input_error / input_scaling).square()))
+                self.writer.add_scalar(
+                    "fit/normalized_input_rmse", normalized_input_rmse.item(), iteration
+                )
+
+            input_groups = getattr(self.config, "MPC_FIT_INPUT_GROUPS", {})
+            for group_name, bounds in input_groups.items():
+                if len(bounds) != 2:
+                    raise ValueError(
+                        f"MPC_FIT_INPUT_GROUPS['{group_name}'] must contain [start, end] indices."
+                    )
+                start, end = int(bounds[0]), int(bounds[1])
+                if not (0 <= start < end <= input_error.shape[1]):
+                    raise ValueError(
+                        f"MPC_FIT_INPUT_GROUPS['{group_name}']={bounds} is outside input dimension "
+                        f"{input_error.shape[1]}."
+                    )
+                group_rmse = torch.sqrt(torch.mean(input_error[:, start:end].square()))
+                self.writer.add_scalar(f"fit/{group_name}_rmse", group_rmse.item(), iteration)
+
     @staticmethod
     def is_better_policy(
             survival_time: float,
@@ -399,6 +451,7 @@ class Mpcnet(metaclass=ABCMeta):
                     input = helper.bmv(action_transformation_matrix, action) + action_transformation_vector
                     # compute the empirical loss
                     empirical_loss = self.experts_loss(x, x, input, u, p, p, dHdxx, dHdux, dHduu, dHdx, dHdu, H)
+                    self._log_mpc_fit_metrics(input, u, empirical_loss, H, iteration)
                     # compute the gradients
                     empirical_loss.backward()
                     # clip the gradients
@@ -420,6 +473,7 @@ class Mpcnet(metaclass=ABCMeta):
                     empirical_experts_loss = self.experts_loss(x, x, input, u, p, p, dHdxx, dHdux, dHduu, dHdx, dHdu, H)
                     empirical_gating_loss = self.gating_loss(x, x, u, u, weights, p, dHdxx, dHdux, dHduu, dHdx, dHdu, H)
                     empirical_loss = empirical_experts_loss + self.config.LAMBDA * empirical_gating_loss
+                    self._log_mpc_fit_metrics(input, u, empirical_experts_loss, H, iteration)
                     # compute the gradients
                     empirical_loss.backward()
                     # clip the gradients

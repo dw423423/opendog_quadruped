@@ -57,6 +57,16 @@ TEST(LeggedRobotRaisim, Conversions) {
     ocs2::legged_robot::LeggedRobotRaisimConversions conversions(
         interface.getPinocchioInterface(), interface.getCentroidalModelInfo(),
         interface.getInitialState());
+    // Verify the intended leg permutation explicitly. Round-trip tests alone
+    // cannot detect two mutually inverse but semantically wrong permutations.
+    const Eigen::VectorXd raisimJointOrder = Eigen::VectorXd::LinSpaced(12, 0.0, 11.0);
+    ocs2::vector_t expectedOcs2JointOrder(12);
+    expectedOcs2JointOrder << 0.0, 1.0, 2.0, 6.0, 7.0, 8.0,
+            3.0, 4.0, 5.0, 9.0, 10.0, 11.0;
+    EXPECT_TRUE(conversions.raisimJointOrderToOcs2JointOrder(raisimJointOrder)
+                    .isApprox(expectedOcs2JointOrder));
+    EXPECT_TRUE(conversions.ocs2JointOrderToRaisimJointOrder(expectedOcs2JointOrder)
+                    .isApprox(raisimJointOrder));
     // consistency test ocs2 -> raisim -> ocs2
     for (size_t i = 0; i < 100; i++) {
         ocs2::vector_t stateIn(24);
