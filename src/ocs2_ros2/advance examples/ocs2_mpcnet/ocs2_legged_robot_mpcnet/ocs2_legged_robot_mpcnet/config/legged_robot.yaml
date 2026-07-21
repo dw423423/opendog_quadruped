@@ -232,6 +232,7 @@ POLICY_EVALUATION_TIME_STEP: 0.0025
 POLICY_EVALUATION_DURATION: 20.0     #表示只使用神经网络运行3秒进行评估。训练代码默认评估时 alpha=0，也就是 MPC 不参与控制。
 POLICY_EVALUATION_THREADS: 3
 POLICY_EVALUATION_TASKS: 3       #任务数太少时，评估指标随机性较大。可能刚好抽到简单任务，就误认为模型很好。
+
 #
 #
 # training

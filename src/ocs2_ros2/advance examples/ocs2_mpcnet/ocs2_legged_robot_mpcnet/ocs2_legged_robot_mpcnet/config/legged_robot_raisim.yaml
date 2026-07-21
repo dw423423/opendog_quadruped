@@ -192,16 +192,16 @@ ACTION_SCALING:
 RAISIM: True
 # weights defining how often a gait is chosen for rollout
 WEIGHTS_FOR_GAITS:
-  stance: 1.0
-  trot_1: 2.0
-  trot_2: 2.0
+  stance: 4.0
+  trot_1: 4.0
+  trot_2: 0.0
 # settings for data generation
 DATA_GENERATION_TIME_STEP: 0.0025
 DATA_GENERATION_DURATION: 4.0
 DATA_GENERATION_DATA_DECIMATION: 4
 DATA_GENERATION_THREADS: 5
 DATA_GENERATION_TASKS: 10
-DATA_GENERATION_SAMPLES: 1
+DATA_GENERATION_SAMPLES: 5
 DATA_GENERATION_SAMPLING_VARIANCE:
   - 0.05           # normalized linear momentum x
   - 0.05           # normalized linear momentum y
@@ -230,8 +230,10 @@ DATA_GENERATION_SAMPLING_VARIANCE:
 # settings for computing metrics
 POLICY_EVALUATION_TIME_STEP: 0.0025
 POLICY_EVALUATION_DURATION: 4.0
-POLICY_EVALUATION_THREADS: 1
-POLICY_EVALUATION_TASKS: 1
+POLICY_EVALUATION_THREADS: 3
+POLICY_EVALUATION_TASKS: 3
+# evaluate the configured gait proportions deterministically
+POLICY_EVALUATION_FIXED_GAIT_PROPORTIONS: True
 #
 # training
 #
@@ -240,8 +242,10 @@ MPC_FIT_LOG_INTERVAL: 100
 MPC_FIT_INPUT_GROUPS:
   contact_force: [0, 12]
   joint_velocity: [12, 24]
-BATCH_SIZE: 32
-LEARNING_RATE: 5.e-4
-LEARNING_ITERATIONS: 200000
+BATCH_SIZE: 128
+LEARNING_RATE: 1.e-3
+LEARNING_ITERATIONS: 100000
 GRADIENT_CLIPPING: True
 GRADIENT_CLIPPING_VALUE: 1
+# do not label a policy as best unless every evaluation task survives for the full duration
+BEST_POLICY_REQUIRE_FULL_SURVIVAL: True
