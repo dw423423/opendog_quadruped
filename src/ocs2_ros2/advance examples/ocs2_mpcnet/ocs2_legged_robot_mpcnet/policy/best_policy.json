@@ -1,0 +1,17 @@
+{
+  "iteration": 188393,
+  "evaluation_duration": 4.0,
+  "survival_time": 4.000001600000022,
+  "final_xy_error": 0.000308383551828661,
+  "final_yaw_error": 0.004873883692917118,
+  "incurred_hamiltonian": 20.574380576071636,
+  "selection_priority": [
+    "survival_time reaches evaluation_duration",
+    "among complete evaluations, final_xy_error smaller",
+    "final_yaw_error smaller only as a tie-breaker",
+    "incurred_hamiltonian smaller only as a tie-breaker",
+    "non-finite tie-breaker values are worse"
+  ],
+  "source_onnx": "/tmp/policy_evaluation_2026-07-22_17-53-49.onnx",
+  "source_pt": "/tmp/policy_evaluation_2026-07-22_17-53-49.pt"
+}

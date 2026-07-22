@@ -244,7 +244,7 @@ MPC_FIT_INPUT_GROUPS:
   joint_velocity: [12, 24]
 BATCH_SIZE: 128
 LEARNING_RATE: 1.e-3
-LEARNING_ITERATIONS: 100000
+LEARNING_ITERATIONS: 200000
 GRADIENT_CLIPPING: True
 GRADIENT_CLIPPING_VALUE: 1
 # do not label a policy as best unless every evaluation task survives for the full duration
